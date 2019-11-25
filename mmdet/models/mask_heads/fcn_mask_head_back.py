@@ -22,8 +22,8 @@ class FCNMaskHead_back(nn.Module):
                  in_channels=256,
                  conv_kernel_size=3,
                  conv_out_channels=256,
-                 fc_out_channels=1024,      #
-                 mask_score_thr=0.05,       #
+                 # fc_out_channels=1024,      #
+                 # mask_score_thr=0.05,       #
                  upsample_method='deconv',
                  upsample_ratio=2,
                  num_classes=81,
@@ -32,8 +32,9 @@ class FCNMaskHead_back(nn.Module):
                  norm_cfg=None,
                  loss_mask=dict(
                      type='CrossEntropyLoss', use_mask=True, loss_weight=1.0),
-                 loss_cls=dict(
-                     type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)): #
+                 # loss_cls=dict(
+                 #     type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+                 ):
         super(FCNMaskHead_back, self).__init__()
         if upsample_method not in [None, 'deconv', 'nearest', 'bilinear']:
             raise ValueError(
@@ -46,8 +47,8 @@ class FCNMaskHead_back(nn.Module):
         self.in_channels = in_channels
         self.conv_kernel_size = conv_kernel_size
         self.conv_out_channels = conv_out_channels
-        self.fc_out_channels = fc_out_channels          #
-        self.mask_score_thr = mask_score_thr            #
+        # self.fc_out_channels = fc_out_channels          #
+        # self.mask_score_thr = mask_score_thr            #
         self.upsample_method = upsample_method
         self.upsample_ratio = upsample_ratio
         self.num_classes = num_classes
@@ -56,7 +57,7 @@ class FCNMaskHead_back(nn.Module):
         self.norm_cfg = norm_cfg
         self.fp16_enabled = False
         self.loss_mask = build_loss(loss_mask)
-        self.loss_cls = build_loss(loss_cls)            #
+        # self.loss_cls = build_loss(loss_cls)            #
 
         self.convs = nn.ModuleList()
         self.fcs = nn.ModuleList()
@@ -74,10 +75,10 @@ class FCNMaskHead_back(nn.Module):
                     norm_cfg=norm_cfg))
 
         # classification layers
-        for i in range(self.num_fcs):
-            fc_in_channels = self.conv_out_channels if i==0 else self.fc_out_channels
-            self.fcs.append(nn.Linear(fc_in_channels, self.fc_out_channels))
-        self.cls_fc = nn.Linear(self.fc_out_channels, num_classes)
+        # for i in range(self.num_fcs):
+        #     fc_in_channels = self.conv_out_channels if i==0 else self.fc_out_channels
+        #     self.fcs.append(nn.Linear(fc_in_channels, self.fc_out_channels))
+        # self.cls_fc = nn.Linear(self.fc_out_channels, num_classes)
 
         upsample_in_channels = (
             self.conv_out_channels if self.num_convs > 0 else in_channels)
@@ -119,26 +120,26 @@ class FCNMaskHead_back(nn.Module):
             if self.upsample_method == 'deconv':
                 x = self.relu(x)
         mask_pred = self.conv_logits(x)
-        x = self.cls_pooling(x)
-        x = x.view(x.size(0), -1)
-        for fc in self.fcs:
-            x = self.relu(fc(x))
-        x_cls = self.cls_fc(x)
-        return mask_pred, x_cls
+        # x = self.cls_pooling(x)
+        # x = x.view(x.size(0), -1)
+        # for fc in self.fcs:
+        #     x = self.relu(fc(x))
+        # x_cls = self.cls_fc(x)
+        return mask_pred#, x_cls
 
-    def fetch_mask(self, mask_pred, mask_cls):
-        assert mask_pred.size(0) == mask_cls.size(0)
-        if mask_pred.size(0):
-            mask_inds = mask_cls.argmax(dim=1)
-            batch_size = mask_cls.size(0)
-            batch_inds = torch.arange(batch_size)
-            fetched_mask = mask_pred[batch_inds, mask_inds]
-            fetched_mask = fetched_mask.unsqueeze(1)
-
-        else:
-            fetched_mask = mask_pred.new_full((1024,1,28,28), 1)
-
-        return fetched_mask
+    # def fetch_mask(self, mask_pred, mask_cls):
+    #     assert mask_pred.size(0) == mask_cls.size(0)
+    #     if mask_pred.size(0):
+    #         mask_inds = mask_cls.argmax(dim=1)
+    #         batch_size = mask_cls.size(0)
+    #         batch_inds = torch.arange(batch_size)
+    #         fetched_mask = mask_pred[batch_inds, mask_inds]
+    #         fetched_mask = fetched_mask.unsqueeze(1)
+    #
+    #     else:
+    #         fetched_mask = mask_pred.new_full((1024,1,28,28), 1)
+    #
+    #     return fetched_mask
 
 
     def get_target(self, sampling_results, gt_masks, rcnn_train_cfg):
@@ -156,8 +157,14 @@ class FCNMaskHead_back(nn.Module):
                                    gt_masks, rcnn_train_cfg)
         return mask_targets
 
+    def get_all_target(self, sampling_results, gt_mask, rcnn_train_cfg):
+        proposals = [res.bboxes for res in sampling_results]
+        assigned_gt_inds = [torch.cat([res.pos_assigned_gt_inds,torch.full(len(res.neg_inds), -1)])
+                            for res in sampling_results]
+        mask_targets = mask_target(proposals, assigned_gt_inds, gt_mask, rcnn_train_cfg)
+
     @force_fp32(apply_to=('mask_pred', ))
-    def loss(self, mask_pred, mask_cls_pred, mask_targets, labels):
+    def loss(self, mask_pred, mask_targets, labels):
         loss = dict()
         select_index = torch.nonzero(labels)
         _mask_pred = mask_pred[select_index].squeeze(1)
@@ -170,11 +177,11 @@ class FCNMaskHead_back(nn.Module):
                                        torch.zeros_like(_labels))
         else:
             loss_mask = self.loss_mask(_mask_pred, mask_targets, _labels)
-            loss_cls = self.loss_cls(mask_cls_pred, labels)
+            # loss_cls = self.loss_cls(mask_cls_pred, labels)
 
-        loss['loss_mask_cls'] = loss_cls
+        # loss['loss_mask_cls'] = loss_cls
         loss['loss_mask'] = loss_mask
-        loss['accuracy_mask_cls'] = accuracy(mask_cls_pred, labels)
+        # loss['accuracy_mask_cls'] = accuracy(mask_cls_pred, labels)
         return loss
 
     def get_seg_masks(self, mask_pred, det_bboxes, det_labels, rcnn_test_cfg,

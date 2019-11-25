@@ -10,7 +10,7 @@ from ..registry import DETECTORS
 from .base import BaseDetector
 from .test_mixins import RPNTestMixin
 
-
+# training code is done, the test code is unmodified 2019/11/25
 @DETECTORS.register_module
 class CascadeRCNN_back(BaseDetector, RPNTestMixin):
 
@@ -22,6 +22,7 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
                  rpn_head=None,
                  bbox_roi_extractor=None,
                  bbox_head=None,
+                 context_head=None,
                  mask_roi_extractor=None,
                  mask_head=None,
                  train_cfg=None,
@@ -42,6 +43,9 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
 
         if shared_head is not None:
             self.shared_head = builder.build_shared_head(shared_head)
+
+        if context_head is not None:
+            self.context_head = builder.build_head(context_head)
 
         if bbox_head is not None:
             self.bbox_roi_extractor = nn.ModuleList()
@@ -202,6 +206,7 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
                         feats=[lvl_feat[j][None] for lvl_feat in x])
                     sampling_results.append(sampling_result)
 
+            # mask head forward and loss
             if self.with_mask:
                 if not self.share_roi_extractor:
                     mask_roi_extractor = self.mask_roi_extractor[i]
@@ -230,10 +235,15 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
                     mask_feats = bbox_feats[pos_inds]
                 mask_head = self.mask_head[i]
                 mask_pred = mask_head(mask_feats)
+
                 mask_targets = mask_head.get_target(sampling_results, gt_masks,
                                                     rcnn_train_cfg)
                 pos_labels = torch.cat(
                     [res.pos_gt_labels for res in sampling_results])
+                neg_labels = [torch.zeros_like(res.neg_inds) for res in sampling_result]
+                labels = zip(pos_labels, neg_labels)
+                torch.cat([torch.cat(label) for label in labels])
+
                 loss_mask = mask_head.loss(mask_pred, mask_targets, pos_labels)
                 for name, value in loss_mask.items():
                     losses['s{}.{}'.format(i, name)] = (
@@ -249,6 +259,8 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
                                             rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
+
+            bbox_feats = self.context_head(bbox_feats, mask_pred.detach())
             cls_score, bbox_pred = bbox_head(bbox_feats)
 
             bbox_targets = bbox_head.get_target(sampling_results, gt_bboxes,
@@ -257,9 +269,6 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
             for name, value in loss_bbox.items():
                 losses['s{}.{}'.format(i, name)] = (
                     value * lw if 'loss' in name else value)
-
-            # mask head forward and loss
-
 
             # refine bboxes
             if i < self.num_stages - 1:
@@ -414,4 +423,4 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
         else:
             if isinstance(result, dict):
                 result = result['ensemble']
-        super(CascadeRCNN, self).show_result(data, result, **kwargs)
+        super(CascadeRCNN_back, self).show_result(data, result, **kwargs)

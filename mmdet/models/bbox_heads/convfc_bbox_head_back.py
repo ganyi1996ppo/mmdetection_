@@ -1,5 +1,8 @@
 import torch.nn as nn
 import torch
+import numpy as np
+import mmcv
+import cv2
 
 from ..registry import HEADS
 from ..utils import ConvModule
@@ -56,13 +59,11 @@ class ConvFCBBoxHead_back(BBoxHead):
         #                              1,
         #                              conv_cfg=self.conv_cfg,
         #                              norm_cfg=self.norm_cfg)
-
-        #2019/10/22: ablation
-        # self.max_pooling = max_pooling
-        # if self.max_pooling:
-        #     self.pooling = nn.AdaptiveMaxPool2d(self.roi_feat_size)
-        # else:
-        #     self.pooling = nn.AdaptiveAvgPool2d(self.roi_feat_size)
+        self.max_pooling = max_pooling
+        if self.max_pooling:
+            self.pooling = nn.AdaptiveMaxPool2d(self.roi_feat_size)
+        else:
+            self.pooling = nn.AdaptiveAvgPool2d(self.roi_feat_size)
 
         # add shared convs and fcs
         self.shared_convs, self.shared_fcs, last_layer_dim = \
@@ -88,8 +89,10 @@ class ConvFCBBoxHead_back(BBoxHead):
                 self.reg_last_dim *= self.roi_feat_area
 
         self.relu = nn.ReLU(inplace=True)
-        #2019/10/22: ablation
-        #self.mask_conv = ConvModule(81, 1, 1, padding=0, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
+        self.mask_convs = nn.ModuleList()
+        for i in range(3):
+            mask_conv_dim = 81 if i<2 else 1
+            self.mask_convs.append(ConvModule(81, mask_conv_dim, 1, padding=0, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg))
         # reconstruct fc_cls and fc_reg since input channels are changed
         if self.with_cls:
             self.fc_cls = nn.Linear(self.cls_last_dim, self.num_classes)
@@ -97,6 +100,8 @@ class ConvFCBBoxHead_back(BBoxHead):
             out_dim_reg = (4 if self.reg_class_agnostic else 4 *
                            self.num_classes)
             self.fc_reg = nn.Linear(self.reg_last_dim, out_dim_reg)
+        # self.bbox_mask_conv = ConvModule(256,self.num_classes,1,conv_cfg=conv_cfg,norm_cfg=norm_cfg)
+
 
     def _add_conv_fc_branch(self,
                             num_branch_convs,
@@ -147,23 +152,61 @@ class ConvFCBBoxHead_back(BBoxHead):
                     nn.init.xavier_uniform_(m.weight)
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):#, mask_pred):
 
-        # 2019/10/22: ablation study(without mask):
+    def ShowMidlleResult(self, mask, det_bbox, img_meta, rcnn_test_cfg):
+        if isinstance(mask, torch.Tensor):
+            mask =mask.sigmoid().cpu().numpy()
+        assert isinstance(mask, np.ndarray)
+        mask = mask.astype(np.float32)
+        bboxes = det_bbox.cpu().numpy()[:,:4]
+        ori_shape = img_meta[0]['ori_shape']
+        scale_factor = img_meta[0]['scale_factor']
+        img = img_meta[0]['img']
+        img_h = np.round(ori_shape[0] * scale_factor).astype(np.int32)
+        img_w = np.round(ori_shape[1] * scale_factor).astype(np.int32)
+        multi_bboxes = bboxes
+        masks = mask
+        for i in range(det_bbox.size()[0]):
+            img_show = img
+            mask = masks[i]
+            bboxes = multi_bboxes[i]
+            bbox_h = max(bboxes[2] - bboxes[0] + 1, 1)
+            bbox_w = max(bboxes[3] - bboxes[1] + 1, 1)
+            im_mask = mmcv.imresize(mask, (bbox_w, bbox_h))
+            im_mask = (im_mask > rcnn_test_cfg.mask_thr_binary).astype(np.uint8)
+            cv2.rectangle(img_show, (bboxes[0], bboxes[1]), (bboxes[2], bboxes[3]), color=[255, 0, 0])
+            img_show[bboxes[0]:bboxes[0]+bbox_h, bboxes[2]:bboxes[2] + bbox_w] *= 0.5
+            img_show[bboxes[0]:bboxes[0] + bbox_h, bboxes[2]:bboxes[2] + bbox_w] += 0.5 * im_mask
+            cv2.namedWindow('image', cv2.WINDOW_AUTOSIZE)
+            cv2.imshow('image', img_show)
+            key = cv2.waitKey(0)
+            if (key == 's'):
+                cv2.imwrite('./image' + str(i), img_show)
+            elif (key == 'b'):
+                break
+            else:
+                continue
 
-        # mask_pred = self.mask_conv(mask_pred)
-        # mask_pred = self.pooling(mask_pred)
-        #2019/10/22
+    def forward(self, x, mask_pred):
 
+        #2019/10/25
+        for mask_conv in self.mask_convs:
+            mask_pred = mask_conv(mask_pred)
+
+        mask_pred = self.pooling(mask_pred)
+
+        #unknow when
         # mask_feats = self.mask_convs(mask_feats)
-        #mask_pred = mask_pred.unsqueeze(1)
-        # 2019/10/22: ablation study(without mask):
-        #x = torch.cat([x, mask_pred], dim=1)
-        #2019/10/22
+        # mask_pred = mask_pred.unsqueeze(1)
+        x = torch.cat([x, mask_pred], dim=1)
         # shared part
+
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
                 x = conv(x)
+        # x = self.bbox_mask_conv(x)
+        # zip_x = zip(x.chunk(81,dim=1), mask_pred.chunk(81, dim=1))
+        # x = torch.cat([torch.cat(elem, dim=1) for elem in zip_x], dim=1)
 
         if self.num_shared_fcs > 0:
             if self.with_avg_pool:
@@ -204,7 +247,7 @@ class SharedFCBBoxHead_back(ConvFCBBoxHead_back):
     def __init__(self, num_fcs=2, fc_out_channels=1024, *args, **kwargs):
         assert num_fcs >= 1
         super(SharedFCBBoxHead_back, self).__init__(
-            num_shared_convs=0,
+            num_shared_convs=3,
             num_shared_fcs=num_fcs,
             num_cls_convs=0,
             num_cls_fcs=0,
