@@ -22,7 +22,7 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
                  rpn_head=None,
                  bbox_roi_extractor=None,
                  bbox_head=None,
-                 context_head=None,
+                 # context_head=None,
                  mask_roi_extractor=None,
                  mask_head=None,
                  train_cfg=None,
@@ -44,8 +44,8 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
         if shared_head is not None:
             self.shared_head = builder.build_shared_head(shared_head)
 
-        if context_head is not None:
-            self.context_head = builder.build_head(context_head)
+        # if context_head is not None:
+        #     self.context_head = builder.build_head(context_head)
 
         if bbox_head is not None:
             self.bbox_roi_extractor = nn.ModuleList()
@@ -260,8 +260,8 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
 
-            bbox_feats = self.context_head(bbox_feats, mask_pred.detach())
-            cls_score, bbox_pred = bbox_head(bbox_feats)
+            # bbox_feats = self.context_head(bbox_feats, mask_pred.detach())
+            cls_score, bbox_pred = bbox_head(bbox_feats, mask_pred.detach())
 
             bbox_targets = bbox_head.get_target(sampling_results, gt_bboxes,
                                                 gt_labels, rcnn_train_cfg)
@@ -296,7 +296,16 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
         rcnn_test_cfg = self.test_cfg.rcnn
 
         rois = bbox2roi(proposal_list)
+        aug_masks = []
         for i in range(self.num_stages):
+            mask_roi_extractor = self.mask_roi_extractor[i]
+            mask_feats = mask_roi_extractor(
+                x[:len(mask_roi_extractor.featmap_strides)], rois)
+            if self.with_shared_head:
+                mask_feats = self.shared_head(mask_feats)
+            mask_pred = self.mask_head[i](mask_feats)
+            aug_masks.append(mask_pred.sigmoid().cpu().numpy())
+
             bbox_roi_extractor = self.bbox_roi_extractor[i]
             bbox_head = self.bbox_head[i]
 
@@ -305,7 +314,7 @@ class CascadeRCNN_back(BaseDetector, RPNTestMixin):
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
 
-            cls_score, bbox_pred = bbox_head(bbox_feats)
+            cls_score, bbox_pred = bbox_head(bbox_feats, mask_pred)
             ms_scores.append(cls_score)
 
             if self.test_cfg.keep_all_stages:

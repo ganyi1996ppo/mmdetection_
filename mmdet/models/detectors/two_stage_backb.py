@@ -22,7 +22,7 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
                  rpn_head=None,
                  bbox_roi_extractor=None,
                  bbox_head=None,
-                 context_head=None,
+                 # context_head=None,
                  mask_roi_extractor=None,
                  mask_head=None,
                  train_cfg=None,
@@ -45,8 +45,8 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 bbox_roi_extractor)
             self.bbox_head = builder.build_head(bbox_head)
 
-        if context_head is not None:
-            self.context_head = builder.build_head(context_head)
+        # if context_head is not None:
+        #     self.context_head = builder.build_head(context_head)
 
         if mask_head is not None:
             if mask_roi_extractor is not None:
@@ -211,9 +211,8 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
             # bbox_feats = F.adaptive_max_pool2d(mask_feats, (7, 7))
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            bbox_feats = self.context_head(bbox_feats, mask_pred.detach())
 
-            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats, mask_pred.detach())
 
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                         gt_bboxes, gt_labels,
@@ -297,8 +296,8 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
             x[:self.bbox_roi_extractor.num_inputs], rois)
         if self.with_shared_head:
             roi_feats = self.shared_head(roi_feats)
-        roi_feats = self.context_head(roi_feats, mask_feats)
-        cls_score, bbox_pred = self.bbox_head(roi_feats)
+        # roi_feats = self.context_head(roi_feats, mask_feats)
+        cls_score, bbox_pred = self.bbox_head(roi_feats, mask_feats)
         img_shape = img_meta[0]['img_shape']
         scale_factor = img_meta[0]['scale_factor']
         det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
