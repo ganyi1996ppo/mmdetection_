@@ -149,5 +149,8 @@ class MaxIoUAssigner(BaseAssigner):
         else:
             assigned_labels = None
 
+        # return AssignResult(
+        #     num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)
         return AssignResult(
-            num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)
+            num_gts, assigned_gt_inds, argmax_overlaps, labels=assigned_labels
+        )

@@ -13,6 +13,7 @@ class SamplingResult(object):
 
         self.num_gts = gt_bboxes.shape[0]
         self.pos_assigned_gt_inds = assign_result.gt_inds[pos_inds] - 1
+        self.neg_gt_inds = assign_result.max_overlaps[neg_inds]
         self.pos_gt_bboxes = gt_bboxes[self.pos_assigned_gt_inds, :]
         if assign_result.labels is not None:
             self.pos_gt_labels = assign_result.labels[pos_inds]
@@ -22,3 +23,7 @@ class SamplingResult(object):
     @property
     def bboxes(self):
         return torch.cat([self.pos_bboxes, self.neg_bboxes])
+
+    @property
+    def inds(self):
+        return torch.cat([self.pos_assigned_gt_inds, self.neg_gt_inds])
