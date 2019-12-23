@@ -78,8 +78,8 @@ class MaskIoUHead_MH(nn.Module):
         # normal_init(self.fc_mask_iou, std=0.01)
 
     def forward(self, mask_feat, mask_pred):
-        mask_pred = mask_pred[1:].sigmoid()
-        mask_pred_pooled = self.max_pool(mask_pred.unsqueeze(1))
+        mask_pred = mask_pred[:,1:,:,:].sigmoid()
+        mask_pred_pooled = self.max_pool(mask_pred)
 
         x = torch.cat((mask_feat, mask_pred_pooled), 1)
 
