@@ -156,8 +156,10 @@ class ConvFCBBoxHead_MH(BBoxHead):
     def forward(self, x, bg_masks, targets_masks):
         # shared part
         H,W = x.size()[-2:]
+        targets_masks = targets_masks[:,None,:,:]
         mt = F.interpolate(targets_masks,(H,W))
         if self.using_bg:
+            bg_masks = bg_masks[:,None, :, :]
             bg = F.interpolate(bg_masks, (H,W))
             x = torch.cat([x, mt, bg], dim=1)
         else:
