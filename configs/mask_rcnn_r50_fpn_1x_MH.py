@@ -60,7 +60,6 @@ model = dict(
     mask_iou_head = dict(
         type='MaskIoUHead_MH',
         num_convs=4,
-        num_fcs=2,
         roi_feat_size=14,
         in_channels=256,
         conv_out_channels=256,
