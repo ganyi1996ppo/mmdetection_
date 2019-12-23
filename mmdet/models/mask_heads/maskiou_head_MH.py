@@ -103,7 +103,7 @@ class MaskIoUHead_MH(nn.Module):
         #     loss_mask_iou = mask_iou_pred * 0
         H, W = mask_pred.size()[-2:]
         mask_targets = mask_targets[:,None,:,:]
-        mask_targets_resize = F.interpolate(mask_targets, (H,W)).squeeze()
+        mask_targets_resize = F.interpolate(mask_targets, (H,W)).squeeze(1)
         num_pred = mask_pred.size(0)
         loss_mask = self.loss_mask(mask_pred, mask_targets_resize, torch.zeros(num_pred, dtype=torch.long))
         loss['loss_refine_mask'] = loss_mask
