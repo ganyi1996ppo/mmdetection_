@@ -149,7 +149,7 @@ class MaskHintRCNN(TwoStageDetector):
             pos_labels = torch.cat(
                 [res.pos_gt_labels for res in sampling_results])
             loss_mask = self.mask_head.loss(mask_pred, mask_targets, bg_targets,
-                                            pos_labels)
+                                            pos_labels, self.test_cfg.rcnn)
             losses.update(loss_mask)
 
             # mask iou head forward and loss
@@ -160,7 +160,7 @@ class MaskHintRCNN(TwoStageDetector):
             # mask_iou_targets = self.mask_iou_head.get_target(
             #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
             #     self.train_cfg.rcnn)
-            loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets)
+            loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
             losses.update(loss_mask_iou)
         return losses
 
