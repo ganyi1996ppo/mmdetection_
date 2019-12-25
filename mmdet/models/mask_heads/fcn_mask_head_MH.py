@@ -2,6 +2,7 @@ import mmcv
 import numpy as np
 import pycocotools.mask as mask_util
 import torch
+import torch.nn.functional as F
 import torch.nn as nn
 from torch.nn.modules.utils import _pair
 
@@ -114,7 +115,7 @@ class FCNMaskHead_MH(nn.Module):
 
 
     @force_fp32(apply_to=('mask_pred', ))
-    def loss(self, mask_pred, mask_targets, bg_target, labels):
+    def loss(self, mask_pred, mask_targets, bg_target, labels, rcnn_cfg):
         loss = dict()
         if self.class_agnostic:
             loss_mask = self.loss_mask(mask_pred, mask_targets,
@@ -125,6 +126,10 @@ class FCNMaskHead_MH(nn.Module):
             loss_bg_mask = self.loss_mask(mask_pred, bg_target, torch.zeros_like(labels))
         loss['loss_mask'] = loss_mask
         loss['loss_bg_mask'] = loss_bg_mask
+        loss['bg_acc'] = ((mask_pred[:,0,:,:] >= rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
+        bg_pred = F.interpolate(mask_pred[:,0:1,:,:], (7,7), mode='bilinear')
+        bg_target = F.interpolate(bg_target[:,None,:,:], (7,7))
+        loss['bg_resize_acc'] = ((bg_pred>=rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
         return loss
 
     def get_seg_masks(self, mask_pred, det_bboxes, det_labels, rcnn_test_cfg,

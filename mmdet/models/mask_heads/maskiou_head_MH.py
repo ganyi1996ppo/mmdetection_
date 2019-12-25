@@ -93,7 +93,7 @@ class MaskIoUHead_MH(nn.Module):
         return mask_out
 
     @force_fp32(apply_to=('mask_iou_pred', ))
-    def loss(self, mask_pred, mask_targets):
+    def loss(self, mask_pred, mask_targets, rcnn_cfg):
         loss = dict()
         # pos_inds = mask_iou_targets > 0
         # if pos_inds.sum() > 0:
@@ -103,10 +103,11 @@ class MaskIoUHead_MH(nn.Module):
         #     loss_mask_iou = mask_iou_pred * 0
         H, W = mask_pred.size()[-2:]
         mask_targets = mask_targets[:,None,:,:]
-        mask_targets_resize = F.interpolate(mask_targets, (H,W)).squeeze(1)
+        mask_targets = F.interpolate(mask_targets, (H,W)).squeeze(1)
         num_pred = mask_pred.size(0)
-        loss_mask = self.loss_mask(mask_pred, mask_targets_resize, torch.zeros(num_pred, dtype=torch.long))
+        loss_mask = self.loss_mask(mask_pred, mask_targets, torch.zeros(num_pred, dtype=torch.long))
         loss['loss_refine_mask'] = loss_mask
+        loss['refine_acc'] = ((mask_pred >= rcnn_cfg.mask_thr_binary).float() == mask_targets).sum().float() / mask_targets.numel() * 100
         # loss['loss_mask_iou'] = loss_mask_iou
 
         return loss
