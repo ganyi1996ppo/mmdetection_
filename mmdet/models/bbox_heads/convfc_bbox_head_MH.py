@@ -55,7 +55,8 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.using_bg = using_bg
 
         # add shared convs and fcs
-        self.combine = ConvModule(258, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        self.in_channel = 258 if using_bg else 257
+        self.combine = ConvModule(self.in_channel, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
                 self.num_shared_convs, self.num_shared_fcs, self.in_channels,
@@ -156,7 +157,10 @@ class ConvFCBBoxHead_MH(BBoxHead):
     def forward(self, x, bg_masks, targets_masks):
         # shared part
         H,W = x.size()[-2:]
-        targets_masks = targets_masks[:,None,:,:]
+        if len(bg_masks.size()) == 3:
+            bg_masks = bg_masks[:,None,:,:]
+        if len(targets_masks.size()) == 3:
+            targets_masks = targets_masks[:,None,:,:]
         mt = F.interpolate(targets_masks,(H,W))
         if self.using_bg:
             bg_masks = bg_masks[:,None, :, :]

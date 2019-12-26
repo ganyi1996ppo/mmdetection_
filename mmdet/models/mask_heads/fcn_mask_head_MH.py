@@ -27,6 +27,7 @@ class FCNMaskHead_MH(nn.Module):
                  class_agnostic=False,
                  conv_cfg=None,
                  norm_cfg=None,
+                 using_bg = True,
                  loss_mask=dict(
                      type='CrossEntropyLoss', use_mask=True, loss_weight=1.0)):
         super(FCNMaskHead_MH, self).__init__()
@@ -43,6 +44,7 @@ class FCNMaskHead_MH(nn.Module):
         self.upsample_method = upsample_method
         self.upsample_ratio = upsample_ratio
         self.num_classes = num_classes
+        self.using_bg = using_bg
         self.class_agnostic = class_agnostic
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
@@ -120,16 +122,18 @@ class FCNMaskHead_MH(nn.Module):
         if self.class_agnostic:
             loss_mask = self.loss_mask(mask_pred, mask_targets,
                                        torch.zeros_like(labels))
-            loss_bg_mask = None
+            # loss_bg_mask = None
         else:
             loss_mask = self.loss_mask(mask_pred, mask_targets, labels)
-            loss_bg_mask = self.loss_mask(mask_pred, bg_target, torch.zeros_like(labels))
+
         loss['loss_mask'] = loss_mask
-        loss['loss_bg_mask'] = loss_bg_mask
-        loss['bg_acc'] = ((mask_pred[:,0,:,:] >= rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
-        bg_pred = F.interpolate(mask_pred[:,0:1,:,:], (7,7), mode='bilinear')
-        bg_target = F.interpolate(bg_target[:,None,:,:], (7,7))
-        loss['bg_resize_acc'] = ((bg_pred>=rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
+        if self.using_bg:
+            loss_bg_mask = self.loss_mask(mask_pred, bg_target, torch.zeros_like(labels))
+            loss['loss_bg_mask'] = loss_bg_mask
+            loss['bg_acc'] = ((mask_pred[:,0,:,:] >= rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
+            bg_pred = F.interpolate(mask_pred[:,0:1,:,:], (7,7), mode='bilinear')
+            bg_target = F.interpolate(bg_target[:,None,:,:], (7,7))
+            loss['bg_resize_acc'] = ((bg_pred>=rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
         return loss
 
     def get_seg_masks(self, mask_pred, det_bboxes, det_labels, rcnn_test_cfg,
