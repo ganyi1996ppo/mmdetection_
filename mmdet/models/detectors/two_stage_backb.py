@@ -202,9 +202,9 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
                             dtype=torch.uint8))
                 pos_inds = torch.cat(pos_inds)
                 mask_feats = bbox_feats[pos_inds]
-            mask_pred = self.mask_head(mask_feats)
+            mask_pred, mask_refine = self.mask_head(mask_feats)
 
-            mask_targets = self.mask_head.get_target(sampling_results,
+            mask_targets = self.mask_head.get_all_target(sampling_results,
                                                      gt_masks,
                                                      self.train_cfg.rcnn)
             # fetched_mask = self.mask_head.fetch_mask(mask_pred.detach(), mask_cls_pred)
@@ -212,16 +212,13 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
 
-            cls_score, bbox_pred = self.bbox_head(bbox_feats, mask_pred.detach())
+            cls_score, bbox_pred = self.bbox_head(bbox_feats, mask_refine.detach())
 
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                         gt_bboxes, gt_labels,
                                                         self.train_cfg.rcnn)
-            pos_labels = [res.pos_gt_labels for res in sampling_results]
-            neg_labels = [torch.zeros_like(res.neg_inds) for res in sampling_results]
-            labels = zip(pos_labels, neg_labels)
-            labels = torch.cat([torch.cat(label) for label in labels])
-            loss_mask = self.mask_head.loss(mask_pred, mask_targets,
+            labels = [res.inds for res in sampling_results]
+            loss_mask = self.mask_head.loss(mask_pred, mask_refine, mask_targets,
                                             labels)
 
             losses.update(loss_mask)
@@ -275,7 +272,7 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 x[:len(self.mask_roi_extractor.featmap_strides)], mask_rois)
             if self.with_shared_head:
                 mask_feats = self.shared_head(mask_feats)
-            mask_pred = self.mask_head(mask_feats)
+            mask_pred,_ = self.mask_head(mask_feats)
             segm_result = self.mask_head.get_seg_masks(mask_pred, _bboxes,
                                                        det_labels,
                                                        self.test_cfg.rcnn,
@@ -323,7 +320,7 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
         mask_feats = self.mask_roi_extractor(x[:len(self.mask_roi_extractor.featmap_strides)], mask_rois)
         if self.with_shared_head:
             mask_feats = self.shared_head(mask_feats)
-        mask_pred = self.mask_head(mask_feats)
+        _, mask_pred = self.mask_head(mask_feats)
         # fetched_mask = self.mask_head.fetch_mask(mask_pred, mask_cls_pred)
 
         det_bboxes, det_labels = self.simple_test_bboxes(

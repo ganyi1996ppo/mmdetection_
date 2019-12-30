@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import mmcv
 import cv2
+import torch.nn.functional as F
 
 from ..registry import HEADS
 from ..utils import ConvModule
@@ -89,10 +90,11 @@ class ConvFCBBoxHead_back(BBoxHead):
                 self.reg_last_dim *= self.roi_feat_area
 
         self.relu = nn.ReLU(inplace=True)
-        self.mask_convs = nn.ModuleList()
-        for i in range(3):
-            mask_conv_dim = 81 if i<2 else 1
-            self.mask_convs.append(ConvModule(81, mask_conv_dim, 1, padding=0, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg))
+        self.combine = ConvModule(257, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        # self.mask_convs = nn.ModuleList()
+        # for i in range(3):
+        #     mask_conv_dim = 81 if i<2 else 1
+        #     self.mask_convs.append(ConvModule(81, mask_conv_dim, 1, padding=0, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg))
         # reconstruct fc_cls and fc_reg since input channels are changed
         if self.with_cls:
             self.fc_cls = nn.Linear(self.cls_last_dim, self.num_classes)
@@ -187,18 +189,20 @@ class ConvFCBBoxHead_back(BBoxHead):
             else:
                 continue
 
-    def forward(self, x, mask_pred):
+    def forward(self, x, mask_pred, rcnn_cfg):
 
         #2019/10/25
-        for mask_conv in self.mask_convs:
-            mask_pred = mask_conv(mask_pred)
-
-        mask_pred = self.pooling(mask_pred)
-
+        # for mask_conv in self.mask_convs:
+        #     mask_pred = mask_conv(mask_pred)
+        # H,W = x.size()[-2:]
+        #
+        # mask_pred = F.interpolate(mask_pred, (H,W))
+        mask_pred = (mask_pred >= rcnn_cfg.mask_thr_binary).float()
         #unknow when
         # mask_feats = self.mask_convs(mask_feats)
         # mask_pred = mask_pred.unsqueeze(1)
         x = torch.cat([x, mask_pred], dim=1)
+        x = self.combine(x)
         # shared part
 
         if self.num_shared_convs > 0:

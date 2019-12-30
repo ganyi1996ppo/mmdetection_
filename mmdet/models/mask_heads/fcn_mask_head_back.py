@@ -4,8 +4,9 @@ import pycocotools.mask as mask_util
 import torch
 import torch.nn as nn
 from torch.nn.modules.utils import _pair
+import torch.nn.functional as  F
 
-from mmdet.core import auto_fp16, force_fp32, mask_target
+from mmdet.core import auto_fp16, force_fp32, mask_target, mask_bg_target
 from ..builder import build_loss
 from ..registry import HEADS
 from ..utils import ConvModule
@@ -102,6 +103,11 @@ class FCNMaskHead_back(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.cls_pooling = nn.AdaptiveAvgPool2d((1,1))
         self.debug_imgs = None
+        self.transform1 = ConvModule(81, 64, padding = 0, conv_cfg = self.conv_cfg, norm_cfg = self.norm_cfg)
+        self.transform2 = ConvModule(64, 32, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
+        self.transform3 = ConvModule(32, 16, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=norm_cfg)
+        self.transform4 = ConvModule(16, 8, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
+        self.transform5 = ConvModule(8, 1, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
 
     def init_weights(self):
         for m in [self.upsample, self.conv_logits]:
@@ -120,12 +126,17 @@ class FCNMaskHead_back(nn.Module):
             if self.upsample_method == 'deconv':
                 x = self.relu(x)
         mask_pred = self.conv_logits(x)
+        refine = self.transform1(mask_pred)
+        refine = self.transform2(refine)
+        refine = self.transform3(refine)
+        refine = self.transform4(refine)
+        refine = self.transform5(refine)
         # x = self.cls_pooling(x)
         # x = x.view(x.size(0), -1)
         # for fc in self.fcs:
         #     x = self.relu(fc(x))
         # x_cls = self.cls_fc(x)
-        return mask_pred#, x_cls
+        return mask_pred, refine#, x_cls
 
     # def fetch_mask(self, mask_pred, mask_cls):
     #     assert mask_pred.size(0) == mask_cls.size(0)
@@ -157,30 +168,39 @@ class FCNMaskHead_back(nn.Module):
                                    gt_masks, rcnn_train_cfg)
         return mask_targets
 
+    def get_bg_target(self, sampling_results, gt_masks, rcnn_train_cfg):
+        proposals = [res.pos_bboxes for res in sampling_results]
+        mask_bg_targets = mask_bg_target(proposals, gt_masks, rcnn_train_cfg)
+        return mask_bg_targets
+
     def get_all_target(self, sampling_results, gt_mask, rcnn_train_cfg):
         proposals = [res.bboxes for res in sampling_results]
-        assigned_gt_inds = [torch.cat([res.pos_assigned_gt_inds,torch.full(len(res.neg_inds), -1)])
-                            for res in sampling_results]
-        mask_targets = mask_target(proposals, assigned_gt_inds, gt_mask, rcnn_train_cfg)
+        assigned_gt_inds = [
+            res.inds for res in sampling_results
+        ]
+        all_target = mask_target(proposals, assigned_gt_inds,
+                                 gt_mask, rcnn_train_cfg)
 
     @force_fp32(apply_to=('mask_pred', ))
-    def loss(self, mask_pred, mask_targets, labels):
+    def loss(self, mask_pred, mask_refine, mask_targets, labels):
         loss = dict()
-        select_index = torch.nonzero(labels)
-        _mask_pred = mask_pred[select_index].squeeze(1)
-        _labels = labels[select_index].squeeze()
-
         # if len(_mask_pred.size())!=4:
         #     _mask_pred.unsqueeze(0)
         if self.class_agnostic:
-            loss_mask = self.loss_mask(_mask_pred, mask_targets,
-                                       torch.zeros_like(_labels))
+            loss_mask = self.loss_mask(mask_pred, mask_targets,
+                                       torch.zeros_like(labels))
         else:
-            loss_mask = self.loss_mask(_mask_pred, mask_targets, _labels)
+            loss_mask = self.loss_mask(mask_pred, mask_targets, labels)
+        if len(mask_targets.size())==3:
+            mask_targets = mask_targets[:,None,:,:]
+        H,W = mask_refine.size()[-2:]
+        mask_targets = F.interpolate(mask_targets, (H,W)).squeeze()
             # loss_cls = self.loss_cls(mask_cls_pred, labels)
+        loss_refine = self.loss_mask(mask_refine, mask_targets, torch.zeros_like(labels))
 
         # loss['loss_mask_cls'] = loss_cls
         loss['loss_mask'] = loss_mask
+        loss['lossa_refine'] = loss_refine
         # loss['accuracy_mask_cls'] = accuracy(mask_cls_pred, labels)
         return loss
 
