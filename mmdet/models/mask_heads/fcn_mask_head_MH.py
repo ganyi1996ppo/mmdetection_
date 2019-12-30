@@ -130,10 +130,10 @@ class FCNMaskHead_MH(nn.Module):
         if self.using_bg:
             loss_bg_mask = self.loss_mask(mask_pred, bg_target, torch.zeros_like(labels))
             loss['loss_bg_mask'] = loss_bg_mask
-            loss['bg_acc'] = ((mask_pred[:,0,:,:] >= rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
-            bg_pred = F.interpolate(mask_pred[:,0:1,:,:], (7,7), mode='bilinear')
+            loss['bg_acc'] = ((mask_pred[:,0,:,:] >= rcnn_cfg.mask_thr_binary).float() == bg_target).sum().float() * 100/bg_target.numel()*100
+            bg_pred = F.interpolate(mask_pred[:,0:1,:,:], (7,7))
             bg_target = F.interpolate(bg_target[:,None,:,:], (7,7))
-            loss['bg_resize_acc'] = ((bg_pred>=rcnn_cfg.mask_thr_binary).float() == bg_target).float()/bg_target.numel()*100
+            loss['bg_resize_acc'] = ((bg_pred>=rcnn_cfg.mask_thr_binary).float() == bg_target).sum().float() * 100/bg_target.numel()
         return loss
 
     def get_seg_masks(self, mask_pred, det_bboxes, det_labels, rcnn_test_cfg,

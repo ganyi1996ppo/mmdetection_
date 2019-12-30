@@ -31,6 +31,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  conv_cfg=None,
                  norm_cfg=None,
                  using_bg=True,
+                 using_refine=False,
                  *args,
                  **kwargs):
         super(ConvFCBBoxHead_MH, self).__init__(*args, **kwargs)
@@ -53,9 +54,10 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.using_bg = using_bg
+        self.using_refine = using_refine
 
         # add shared convs and fcs
-        self.in_channel = 258 if using_bg else 257
+        self.in_channel = 258 if using_bg and using_refine else 257
         self.combine = ConvModule(self.in_channel, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
@@ -162,10 +164,12 @@ class ConvFCBBoxHead_MH(BBoxHead):
         if len(targets_masks.size()) == 3:
             targets_masks = targets_masks[:,None,:,:]
         mt = F.interpolate(targets_masks,(H,W))
-        if self.using_bg:
-            bg_masks = bg_masks[:,None, :, :]
-            bg = F.interpolate(bg_masks, (H,W))
+        bg_masks = bg_masks[:, None, :, :]
+        bg = F.interpolate(bg_masks, (H, W))
+        if self.using_bg and self.using_refine:
             x = torch.cat([x, mt, bg], dim=1)
+        elif self.using_bg:
+            x = torch.cat([x, bg], dim=1)
         else:
             x = torch.cat([x, mt], dim=1)
         x = self.combine(x)

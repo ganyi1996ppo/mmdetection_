@@ -23,6 +23,7 @@ class MaskHintRCNN(TwoStageDetector):
                  train_cfg,
                  test_cfg,
                  neck=None,
+                 using_refine = False,
                  shared_head=None,
                  mask_iou_head=None,
                  pretrained=None):
@@ -39,8 +40,10 @@ class MaskHintRCNN(TwoStageDetector):
             test_cfg=test_cfg,
             pretrained=pretrained)
 
-        self.mask_iou_head = builder.build_head(mask_iou_head)
-        self.mask_iou_head.init_weights()
+        self.using_refine = using_refine
+        if using_refine:
+            self.mask_iou_head = builder.build_head(mask_iou_head)
+            self.mask_iou_head.init_weights()
 
     def forward_dummy(self, img):
         raise NotImplementedError
@@ -154,14 +157,15 @@ class MaskHintRCNN(TwoStageDetector):
 
             # mask iou head forward and loss
             # pos_mask_pred = mask_pred[range(mask_pred.size(0)), pos_labels]
-            mask_refine_mask = self.mask_iou_head(mask_feats, mask_pred)
-            # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
-            #                                         ), pos_labels]
-            # mask_iou_targets = self.mask_iou_head.get_target(
-            #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
-            #     self.train_cfg.rcnn)
-            loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
-            losses.update(loss_mask_iou)
+            if self.using_refine:
+                mask_refine_mask = self.mask_iou_head(mask_feats, mask_pred)
+                # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
+                #                                         ), pos_labels]
+                # mask_iou_targets = self.mask_iou_head.get_target(
+                #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
+                #     self.train_cfg.rcnn)
+                loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
+                losses.update(loss_mask_iou)
         return losses
 
     def simple_test_mask(self,
