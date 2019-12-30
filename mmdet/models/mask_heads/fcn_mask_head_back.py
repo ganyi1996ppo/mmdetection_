@@ -191,9 +191,6 @@ class FCNMaskHead_back(nn.Module):
             loss_mask = self.loss_mask(mask_pred, mask_targets,
                                        torch.zeros_like(labels))
         else:
-            print(mask_pred.size())
-            print(mask_targets.size())
-            print(labels.size())
             loss_mask = self.loss_mask(mask_pred, mask_targets, labels)
         if len(mask_targets.size())==3:
             mask_targets = mask_targets[:,None,:,:]
