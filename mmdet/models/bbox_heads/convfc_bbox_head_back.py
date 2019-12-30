@@ -189,7 +189,7 @@ class ConvFCBBoxHead_back(BBoxHead):
             else:
                 continue
 
-    def forward(self, x, mask_pred, rcnn_cfg):
+    def forward(self, x, mask_pred):
 
         #2019/10/25
         # for mask_conv in self.mask_convs:
@@ -197,7 +197,7 @@ class ConvFCBBoxHead_back(BBoxHead):
         # H,W = x.size()[-2:]
         #
         # mask_pred = F.interpolate(mask_pred, (H,W))
-        mask_pred = (mask_pred >= rcnn_cfg.mask_thr_binary).float()
+        mask_pred = (mask_pred >= 0.5).float()
         #unknow when
         # mask_feats = self.mask_convs(mask_feats)
         # mask_pred = mask_pred.unsqueeze(1)
