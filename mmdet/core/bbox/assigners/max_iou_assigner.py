@@ -143,6 +143,8 @@ class MaxIoUAssigner(BaseAssigner):
         if gt_labels is not None:
             assigned_labels = assigned_gt_inds.new_zeros((num_bboxes, ))
             pos_inds = torch.nonzero(assigned_gt_inds > 0).squeeze()
+            neg_inds = torch.nonzero(assigned_gt_inds == 0).squeeze()
+            assigned_labels[neg_inds] = gt_labels[argmax_overlaps[neg_inds]]
             if pos_inds.numel() > 0:
                 assigned_labels[pos_inds] = gt_labels[
                     assigned_gt_inds[pos_inds] - 1]

@@ -217,7 +217,7 @@ class TwoStageDetector_back(BaseDetector, RPNTestMixin, BBoxTestMixin,
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                         gt_bboxes, gt_labels,
                                                         self.train_cfg.rcnn)
-            labels = [res.inds for res in sampling_results]
+            labels = [res.labels for res in sampling_results]
             loss_mask = self.mask_head.loss(mask_pred, mask_refine, mask_targets,
                                             labels)
 
