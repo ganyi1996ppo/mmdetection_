@@ -164,7 +164,6 @@ class ConvFCBBoxHead_MH(BBoxHead):
         if len(targets_masks.size()) == 3:
             targets_masks = targets_masks[:,None,:,:]
         mt = F.interpolate(targets_masks,(H,W))
-        bg_masks = bg_masks[:, None, :, :]
         bg = F.interpolate(bg_masks, (H, W))
         if self.using_bg and self.using_refine:
             x = torch.cat([x, mt, bg], dim=1)
