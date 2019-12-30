@@ -7,5 +7,5 @@ from .convfc_bbox_head_MH import SharedFCBBoxHead_MH
 
 __all__ = [
     'BBoxHead', 'ConvFCBBoxHead', 'SharedFCBBoxHead', 'DoubleConvFCBBoxHead', 'ContextHead',
-    'SharedFCBBoxHead_MH'
+    'SharedFCBBoxHead_MH','SharedFCBBoxHead_back'
 ]
