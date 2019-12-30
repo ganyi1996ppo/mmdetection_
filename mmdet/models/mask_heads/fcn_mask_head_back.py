@@ -103,7 +103,7 @@ class FCNMaskHead_back(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.cls_pooling = nn.AdaptiveAvgPool2d((1,1))
         self.debug_imgs = None
-        self.transform1 = ConvModule(81, 64, padding = 0, conv_cfg = self.conv_cfg, norm_cfg = self.norm_cfg)
+        self.transform1 = ConvModule(81, 64, 1, padding = 0, conv_cfg = self.conv_cfg, norm_cfg = self.norm_cfg)
         self.transform2 = ConvModule(64, 32, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
         self.transform3 = ConvModule(32, 16, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=norm_cfg)
         self.transform4 = ConvModule(16, 8, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
