@@ -180,6 +180,7 @@ class FCNMaskHead_back(nn.Module):
         ]
         all_target = mask_target(proposals, assigned_gt_inds,
                                  gt_mask, rcnn_train_cfg)
+        return all_target
 
     @force_fp32(apply_to=('mask_pred', ))
     def loss(self, mask_pred, mask_refine, mask_targets, labels):
@@ -190,6 +191,9 @@ class FCNMaskHead_back(nn.Module):
             loss_mask = self.loss_mask(mask_pred, mask_targets,
                                        torch.zeros_like(labels))
         else:
+            print(mask_pred.size())
+            print(mask_targets.size())
+            print(labels.size())
             loss_mask = self.loss_mask(mask_pred, mask_targets, labels)
         if len(mask_targets.size())==3:
             mask_targets = mask_targets[:,None,:,:]
