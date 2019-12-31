@@ -33,8 +33,8 @@ class FCNMaskHead_back(nn.Module):
                  norm_cfg=None,
                  loss_mask=dict(
                      type='CrossEntropyLoss', use_mask=True, loss_weight=1.0),
-                 # loss_cls=dict(
-                 #     type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+                 loss_refine=dict(
+                     type='CrossEntropyLoss', use_mask=True, loss_weight=1.5)
                  ):
         super(FCNMaskHead_back, self).__init__()
         if upsample_method not in [None, 'deconv', 'nearest', 'bilinear']:
@@ -58,6 +58,7 @@ class FCNMaskHead_back(nn.Module):
         self.norm_cfg = norm_cfg
         self.fp16_enabled = False
         self.loss_mask = build_loss(loss_mask)
+        self.loss_refine = build_loss(loss_refine)
         # self.loss_cls = build_loss(loss_cls)            #
 
         self.convs = nn.ModuleList()
@@ -195,8 +196,8 @@ class FCNMaskHead_back(nn.Module):
         H,W = mask_refine.size()[-2:]
         mask_targets = F.interpolate(mask_targets, (H,W)).squeeze()
             # loss_cls = self.loss_cls(mask_cls_pred, labels)
-        loss_refine = self.loss_mask(mask_refine, mask_targets, torch.zeros_like(labels))
-        loss['refine_acc'] = ((mask_refine >= 0.5).float() == mask_targets).sum().float()*100 / mask_targets.numel()
+        loss_refine = self.loss_refine(mask_refine, mask_targets, torch.zeros_like(labels))
+        loss['refine_acc'] = ((mask_refine >= 0.5).squeeze().float() == mask_targets).sum().float() / mask_targets.numel()
 
         # loss['loss_mask_cls'] = loss_cls
         loss['loss_mask'] = loss_mask
