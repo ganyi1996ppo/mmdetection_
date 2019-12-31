@@ -196,10 +196,11 @@ class FCNMaskHead_back(nn.Module):
         mask_targets = F.interpolate(mask_targets, (H,W)).squeeze()
             # loss_cls = self.loss_cls(mask_cls_pred, labels)
         loss_refine = self.loss_mask(mask_refine, mask_targets, torch.zeros_like(labels))
+        loss['refine_acc'] = ((mask_refine >= rcnn_cfg.mask_thr_binary).float() == mask_targets).sum().float()*100 / mask_targets.numel()
 
         # loss['loss_mask_cls'] = loss_cls
         loss['loss_mask'] = loss_mask
-        loss['lossa_refine'] = loss_refine
+        loss['loss_refine'] = loss_refine
         # loss['accuracy_mask_cls'] = accuracy(mask_cls_pred, labels)
         return loss
 
