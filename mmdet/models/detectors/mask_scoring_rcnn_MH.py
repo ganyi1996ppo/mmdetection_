@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from mmdet.core import bbox2roi, build_assigner, build_sampler, bbox2result
 from .. import builder
@@ -23,7 +24,6 @@ class MaskHintRCNN(TwoStageDetector):
                  train_cfg,
                  test_cfg,
                  neck=None,
-                 using_refine = False,
                  shared_head=None,
                  mask_iou_head=None,
                  pretrained=None):
@@ -39,11 +39,8 @@ class MaskHintRCNN(TwoStageDetector):
             train_cfg=train_cfg,
             test_cfg=test_cfg,
             pretrained=pretrained)
-
-        self.using_refine = using_refine
-        if using_refine:
-            self.mask_iou_head = builder.build_head(mask_iou_head)
-            self.mask_iou_head.init_weights()
+        self.mask_iou_head = builder.build_head(mask_iou_head)
+        self.mask_iou_head.init_weights()
 
     def forward_dummy(self, img):
         raise NotImplementedError
@@ -106,17 +103,20 @@ class MaskHintRCNN(TwoStageDetector):
             bbox_feats = self.bbox_roi_extractor(
                 x[:self.bbox_roi_extractor.num_inputs], rois)
 
-            mask_targets, bg_targets = self.bbox_head.get_mask_target(sampling_results, gt_masks, self.train_cfg.rcnn)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score, bbox_pred = self.bbox_head(bbox_feats, bg_targets, mask_targets)
+            # mask_targets, bg_targets = self.mask_iou_head.get_mask_target(sampling_results,gt_masks,self.train_cfg.rcnn)
+            # cls_refine, bbox_refine = self.mask_iou_head(bbox_feats, bg_targets, mask_targets)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats)
 
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                      gt_bboxes, gt_labels,
                                                      self.train_cfg.rcnn)
+            # loss_bbox_refine = self.mask_iou_head(cls_refine, bbox_refine, *bbox_targets)
             loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
                                             *bbox_targets)
             losses.update(loss_bbox)
+            # losses.update(loss_bbox_refine)
 
         # mask head forward and loss
         if self.with_mask:
@@ -158,14 +158,35 @@ class MaskHintRCNN(TwoStageDetector):
             # mask iou head forward and loss
             # pos_mask_pred = mask_pred[range(mask_pred.size(0)), pos_labels]
             if self.using_refine:
-                mask_refine_mask = self.mask_iou_head(mask_feats, mask_pred)
+                # mask_targets, bg_targets = self.bbox_head.get_mask_target(sampling_results, gt_masks, self.train_cfg.rcnn)
+                if self.train_cfg.refine_sample == 'resample':
+                    refine_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], pos_rois)
+                elif self.train_cfg.refine_sample == 'interpolate':
+                    refine_feats = F.interpolate(mask_feats, (7,7))
+                else:
+                    refine_feats = F.max_pool2d(mask_feats)
+                mask_pred = mask_pred.detach()[:,1:,:,:] >= self.train_cfg.rcnn.mask_thr_binary
+                refine_cls, refine_reg = self.mask_iou_head(refine_feats, mask_pred)
+                refine_targets = self.mask_iou_head.get_target(sampling_results,
+                                                               gt_bboxes, gt_labels,
+                                                               self.train_cfg.rcnn)
+                loss_refine = self.mask_iou_head.loss(refine_cls, refine_reg, *refine_targets)
+
+                losses.update(loss_refine)
+
                 # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
                 #                                         ), pos_labels]
                 # mask_iou_targets = self.mask_iou_head.get_target(
                 #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
                 #     self.train_cfg.rcnn)
-                loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
-                losses.update(loss_mask_iou)
+                # bbox_targets = self.mask_iou_head.get_target(sampling_results,
+                #                                          gt_bboxes, gt_labels,
+                #                                          self.train_cfg.rcnn)
+                # loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+                #                                 *bbox_targets)
+                # losses.update(loss_bbox)
+                # loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
+                # losses.update(loss_mask_iou)
         return losses
 
     def simple_test_mask(self,
@@ -205,23 +226,28 @@ class MaskHintRCNN(TwoStageDetector):
             #     mask_iou_pred, det_bboxes, det_labels)
         return segm_result
 
-    def simple_test_bboxes(self,
+    def refine_test_bboxes(self,
                            x,
                            img_meta,
-                           bg_masks,
-                           refine_masks,
                            proposals,
                            rcnn_test_cfg,
                            rescale=False):
         rois = bbox2roi(proposals)
-        roi_feats = self.bbox_roi_extractor(
-            x[:self.bbox_roi_extractor.num_inputs], rois)
+        roi_feats = self.mask_roi_extractor(
+            x[:self.mask_roi_extractor.num_inputs], rois)
+        mask_pred = self.mask_head(roi_feats)[:,1:,:,:]
+        if self.test_cfg.refine_sample == 'resample':
+            refine_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], rois)
+        elif self.test_cfg.refine_sample == 'interpolate':
+            refine_feats = F.interpolate(roi_feats, (7, 7))
+        else:
+            refine_feats = F.max_pool2d(roi_feats)
+
         if self.with_shared_head:
-            roi_feats = self.shared_head(roi_feats)
+            refine_feats = self.shared_head(refine_feats)
         # roi_feats = self.context_head(roi_feats, mask_feats)
-        bg_masks = (bg_masks > rcnn_test_cfg.rcnn.mask_thr_binary).float()
-        refine_masks = (refine_masks > rcnn_test_cfg.rcnn.mask_thr_binary).float()
-        cls_score, bbox_pred = self.bbox_head(roi_feats, bg_masks, refine_masks)
+        refine_masks = (mask_pred > rcnn_test_cfg.rcnn.mask_thr_binary).float()
+        cls_score, bbox_pred = self.mask_iou_head(refine_feats,refine_masks)
         img_shape = img_meta[0]['img_shape']
         scale_factor = img_meta[0]['scale_factor']
         det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
@@ -243,15 +269,14 @@ class MaskHintRCNN(TwoStageDetector):
 
         proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
-        mask_rois = bbox2roi(proposal_list)
-        mask_feats = self.mask_roi_extractor(x[:len(self.mask_roi_extractor.featmap_strides)], mask_rois)
-        mask_pred = self.mask_head(mask_feats)
-        bg_mask = mask_pred[0]
-        mask_refine = self.mask_iou_head(mask_feats, mask_pred)
-
-
         det_bboxes, det_labels = self.simple_test_bboxes(
-            x, img_meta, bg_mask, mask_refine, proposal_list, self.test_cfg.rcnn, rescale=rescale)
+            x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale
+        )
+        # bbox_results = bbox2result(det_bboxes, det_labels,
+        #                            self.bbox_head.num_classes)
+        det_bboxes, det_labels = self.refine_test_bboxes(
+            x, img_meta, det_bboxes, self.test_cfg.rcnn, rescale=rescale)
+
         bbox_results = bbox2result(det_bboxes, det_labels,
                                    self.bbox_head.num_classes)
 
