@@ -157,36 +157,36 @@ class MaskHintRCNN(TwoStageDetector):
 
             # mask iou head forward and loss
             # pos_mask_pred = mask_pred[range(mask_pred.size(0)), pos_labels]
-            if self.using_refine:
-                # mask_targets, bg_targets = self.bbox_head.get_mask_target(sampling_results, gt_masks, self.train_cfg.rcnn)
-                if self.train_cfg.refine_sample == 'resample':
-                    refine_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], pos_rois)
-                elif self.train_cfg.refine_sample == 'interpolate':
-                    refine_feats = F.interpolate(mask_feats, (7,7))
-                else:
-                    refine_feats = F.max_pool2d(mask_feats)
-                mask_pred = mask_pred.detach()[:,1:,:,:] >= self.train_cfg.rcnn.mask_thr_binary
-                refine_cls, refine_reg = self.mask_iou_head(refine_feats, mask_pred)
-                refine_targets = self.mask_iou_head.get_target(sampling_results,
-                                                               gt_bboxes, gt_labels,
-                                                               self.train_cfg.rcnn)
-                loss_refine = self.mask_iou_head.loss(refine_cls, refine_reg, *refine_targets)
+            # if self.using_refine:
+            # mask_targets, bg_targets = self.bbox_head.get_mask_target(sampling_results, gt_masks, self.train_cfg.rcnn)
+            if self.train_cfg.rcnn.refine_sample == 'resample':
+                refine_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], pos_rois)
+            elif self.train_cfg.rcnn.refine_sample == 'interpolate':
+                refine_feats = F.interpolate(mask_feats, (7,7))
+            else:
+                refine_feats = F.max_pool2d(mask_feats)
+            mask_pred = (mask_pred.detach()[:,1:,:,:] >= self.train_cfg.rcnn.mask_thr_binary).float()
+            refine_cls, refine_reg = self.mask_iou_head(refine_feats, mask_pred)
+            refine_targets = self.mask_iou_head.get_target(sampling_results,
+                                                           gt_bboxes, gt_labels,
+                                                           self.train_cfg.rcnn)
+            loss_refine = self.mask_iou_head.loss(refine_cls, refine_reg, *refine_targets)
 
-                losses.update(loss_refine)
+            losses.update(loss_refine)
 
-                # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
-                #                                         ), pos_labels]
-                # mask_iou_targets = self.mask_iou_head.get_target(
-                #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
-                #     self.train_cfg.rcnn)
-                # bbox_targets = self.mask_iou_head.get_target(sampling_results,
-                #                                          gt_bboxes, gt_labels,
-                #                                          self.train_cfg.rcnn)
-                # loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
-                #                                 *bbox_targets)
-                # losses.update(loss_bbox)
-                # loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
-                # losses.update(loss_mask_iou)
+            # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
+            #                                         ), pos_labels]
+            # mask_iou_targets = self.mask_iou_head.get_target(
+            #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
+            #     self.train_cfg.rcnn)
+            # bbox_targets = self.mask_iou_head.get_target(sampling_results,
+            #                                          gt_bboxes, gt_labels,
+            #                                          self.train_cfg.rcnn)
+            # loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+            #                                 *bbox_targets)
+            # losses.update(loss_bbox)
+            # loss_mask_iou = self.mask_iou_head.loss(mask_refine_mask,mask_targets, self.test_cfg.rcnn)
+            # losses.update(loss_mask_iou)
         return losses
 
     def simple_test_mask(self,
@@ -236,9 +236,9 @@ class MaskHintRCNN(TwoStageDetector):
         roi_feats = self.mask_roi_extractor(
             x[:self.mask_roi_extractor.num_inputs], rois)
         mask_pred = self.mask_head(roi_feats)[:,1:,:,:]
-        if self.test_cfg.refine_sample == 'resample':
+        if self.test_cfg.rcnn.refine_sample == 'resample':
             refine_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], rois)
-        elif self.test_cfg.refine_sample == 'interpolate':
+        elif self.test_cfg.rcnn.refine_sample == 'interpolate':
             refine_feats = F.interpolate(roi_feats, (7, 7))
         else:
             refine_feats = F.max_pool2d(roi_feats)
