@@ -103,11 +103,10 @@ class FCNMaskHead_back(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.cls_pooling = nn.AdaptiveAvgPool2d((1,1))
         self.debug_imgs = None
-        self.transform1 = ConvModule(81, 64, 1, padding = 0, conv_cfg = self.conv_cfg, norm_cfg = self.norm_cfg)
-        self.transform2 = ConvModule(64, 32, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
-        self.transform3 = ConvModule(32, 16, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=norm_cfg)
-        self.transform4 = ConvModule(16, 8, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
-        self.transform5 = ConvModule(8, 1, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
+        self.transform1 = ConvModule(256, 256, 1, padding = 0, conv_cfg = self.conv_cfg, norm_cfg = self.norm_cfg)
+        self.transform2 = ConvModule(256, 256, 3, stride=2, padding=1, conv_cfg=self.conv_cfg, norm_cfg=norm_cfg)
+        self.transform3 = ConvModule(256, 128, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
+        self.transform4 = ConvModule(128, 1, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg)
 
     def init_weights(self):
         for m in [self.upsample, self.conv_logits]:
@@ -121,16 +120,15 @@ class FCNMaskHead_back(nn.Module):
     def forward(self, x):
         for conv in self.convs:
             x = conv(x)
+        refine = self.transform1(x)
+        refine = self.transform2(refine)
+        refine = self.transform3(refine)
+        refine = self.transform4(refine)
         if self.upsample is not None:
             x = self.upsample(x)
             if self.upsample_method == 'deconv':
                 x = self.relu(x)
         mask_pred = self.conv_logits(x)
-        refine = self.transform1(mask_pred)
-        refine = self.transform2(refine)
-        refine = self.transform3(refine)
-        refine = self.transform4(refine)
-        refine = self.transform5(refine)
         # x = self.cls_pooling(x)
         # x = x.view(x.size(0), -1)
         # for fc in self.fcs:
