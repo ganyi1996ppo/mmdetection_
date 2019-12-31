@@ -174,9 +174,11 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             # TODO: a more flexible way to decide which feature maps to use
             bbox_feats = self.bbox_roi_extractor(
                 x[:self.bbox_roi_extractor.num_inputs], rois)
+            mask_targets, bg_targets= self.get_mask_target(sampling_results, gt_masks, self.train_cfg.rcnn)
+
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats, bg_targets, mask_targets)
 
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                      gt_bboxes, gt_labels,
@@ -215,9 +217,12 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             mask_targets = self.mask_head.get_target(sampling_results,
                                                      gt_masks,
                                                      self.train_cfg.rcnn)
+            bg_targets = self.mask_head.get_bg_target(sampling_results,
+                                                      gt_masks,
+                                                      self.train_cfg.rcnn)
             pos_labels = torch.cat(
                 [res.pos_gt_labels for res in sampling_results])
-            loss_mask = self.mask_head.loss(mask_pred, mask_targets,
+            loss_mask = self.mask_head.loss(mask_pred, mask_targets, bg_targets,
                                             pos_labels)
             losses.update(loss_mask)
 
@@ -231,6 +236,8 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
 
         proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
+
+         
 
         det_bboxes, det_labels = self.simple_test_bboxes(
             x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)

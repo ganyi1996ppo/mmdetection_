@@ -6,7 +6,8 @@ from .bbox_head import BBoxHead
 import torch
 import torch.nn.functional as F
 import mmcv
-from mmdet.core import mask_target, mask_bg_target
+from mmdet.core import mask_target, mask_bg_target, force_fp32, bbox_target
+from ..losses import accuracy
 
 
 @HEADS.register_module
@@ -30,8 +31,8 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  fc_out_channels=1024,
                  conv_cfg=None,
                  norm_cfg=None,
-                 using_bg=True,
-                 using_refine=False,
+                 using_bg=False,
+                 using_refine=True,
                  *args,
                  **kwargs):
         super(ConvFCBBoxHead_MH, self).__init__(*args, **kwargs)
@@ -57,8 +58,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.using_refine = using_refine
 
         # add shared convs and fcs
-        self.in_channel = 258 if using_bg and using_refine else 257
-        self.combine = ConvModule(self.in_channel, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        self.combine = ConvModule(336, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
                 self.num_shared_convs, self.num_shared_fcs, self.in_channels,
@@ -139,6 +139,40 @@ class ConvFCBBoxHead_MH(BBoxHead):
                     nn.init.xavier_uniform_(m.weight)
                     nn.init.constant_(m.bias, 0)
 
+    @force_fp32(apply_to=('cls_score', 'bbox_pred'))
+    def loss(self,
+             cls_score,
+             bbox_pred,
+             labels,
+             label_weights,
+             bbox_targets,
+             bbox_weights,
+             reduction_override=None):
+        losses = dict()
+        if cls_score is not None:
+            avg_factor = max(torch.sum(label_weights > 0).float().item(), 1.)
+            losses['loss_cls_refine'] = self.loss_cls(
+                cls_score,
+                labels,
+                label_weights,
+                avg_factor=avg_factor,
+                reduction_override=reduction_override)
+            losses['acc_refine'] = accuracy(cls_score, labels)
+        if bbox_pred is not None:
+            pos_inds = labels > 0
+            if self.reg_class_agnostic:
+                pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), 4)[pos_inds]
+            else:
+                pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), -1,
+                                               4)[pos_inds, labels[pos_inds]]
+            losses['loss_bbox_refine'] = self.loss_bbox(
+                pos_bbox_pred,
+                bbox_targets[pos_inds],
+                bbox_weights[pos_inds],
+                avg_factor=bbox_targets.size(0),
+                reduction_override=reduction_override)
+        return losses
+
     def get_mask_target(self, sampling_results, gt_masks, rcnn_train_cfg):
         # pos_proposals = [res.pos_bboxes for res in sampling_results]
         # pos_assigned_gt_inds = [
@@ -155,22 +189,34 @@ class ConvFCBBoxHead_MH(BBoxHead):
         mask_bg_targets = mask_bg_target(proposals, gt_masks, rcnn_train_cfg)
         return mask_targets, mask_bg_targets
 
+    def get_target(self, sampling_results, gt_bboxes, gt_labels,
+                   rcnn_train_cfg):
+        pos_proposals = [res.pos_bboxes for res in sampling_results]
+        neg_proposals = [torch.tensor([]) for res in sampling_results]
+        pos_gt_bboxes = [res.pos_gt_bboxes for res in sampling_results]
+        pos_gt_labels = [res.pos_gt_labels for res in sampling_results]
+        reg_classes = 1 if self.reg_class_agnostic else self.num_classes
+        cls_reg_targets = bbox_target(
+            pos_proposals,
+            neg_proposals,
+            pos_gt_bboxes,
+            pos_gt_labels,
+            rcnn_train_cfg,
+            reg_classes,
+            target_means=self.target_means,
+            target_stds=self.target_stds)
+        return cls_reg_targets
 
-    def forward(self, x, bg_masks, targets_masks):
+
+    def forward(self, x, mask_pred):
         # shared part
         H,W = x.size()[-2:]
-        if len(bg_masks.size()) == 3:
-            bg_masks = bg_masks[:,None,:,:]
-        if len(targets_masks.size()) == 3:
-            targets_masks = targets_masks[:,None,:,:]
-        mt = F.interpolate(targets_masks,(H,W))
-        bg = F.interpolate(bg_masks, (H, W))
-        if self.using_bg and self.using_refine:
-            x = torch.cat([x, mt, bg], dim=1)
-        elif self.using_bg:
-            x = torch.cat([x, bg], dim=1)
-        else:
-            x = torch.cat([x, mt], dim=1)
+        if len(mask_pred.size()) == 3:
+            mask_pred = mask_pred[:,None,:,:]
+        if len(mask_pred.size()) == 2:
+            mask_pred = mask_pred[None, None, :,:]
+        mask_pred = F.interpolate(mask_pred,(H,W))
+        x = torch.cat([x, mask_pred], dim=1)
         x = self.combine(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
