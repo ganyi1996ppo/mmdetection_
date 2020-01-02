@@ -1,6 +1,6 @@
 # model settings
 model = dict(
-    type='MaskRCNN',
+    type='SHRCNN',
     pretrained='torchvision://resnet50',
     backbone=dict(
         type='ResNet',
@@ -14,6 +14,23 @@ model = dict(
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
+    semantic_head=dict(
+        type='FusedSemanticHead',
+        num_ins=5,
+        fusion_level=1,
+        num_convs=4,
+        in_channels=256,
+        conv_out_channels=256,
+        num_classes=183,
+        ignore_label=255,
+        loss_weight=0.2),
+    fuse_neck=dict(
+        type= 'FuseFPN',
+        in_channels=256,
+        out_channels=256,
+        num_levels=5,
+        final_combine='concat',
+    ),
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
@@ -160,7 +177,7 @@ data = dict(
         img_prefix=data_root + 'val2017/',
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.025, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
