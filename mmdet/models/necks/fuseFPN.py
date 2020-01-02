@@ -44,7 +44,6 @@ class FuseFPN(nn.Module):
         self.norm_cfg = norm_cfg
         self.final_combine = final_combine
 
-        assert 0 <= self.rescale_level < self.num_levels
         mid_channels = self.in_channels // 2
         self.res = nn.Sequential(
             ConvModule(self.in_channels, self.in_channels, 3, 1, padding=1,
