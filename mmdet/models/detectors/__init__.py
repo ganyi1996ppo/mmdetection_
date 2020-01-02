@@ -16,10 +16,11 @@ from .two_stage import TwoStageDetector
 from .mask_rcnn_mb import MaskRCNN_MB
 from .mask_scoring_rcnn_ca import MaskScoringRCNN_CA
 from .mask_scoring_rcnn_MH import MaskHintRCNN
+from .mask_scoring_rcnn_SH import SHRCNN
 
 __all__ = [
     'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
     'FastRCNN', 'FasterRCNN', 'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade',
     'DoubleHeadRCNN', 'RetinaNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN',
-    'RepPointsDetector', 'MaskRCNN_MB', 'MaskHintRCNN'
+    'RepPointsDetector', 'MaskRCNN_MB', 'MaskHintRCNN', 'SHRCNN'
 ]
