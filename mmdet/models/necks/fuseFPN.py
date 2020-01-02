@@ -8,7 +8,7 @@ from ..utils import ConvModule
 from ..utils import pool_conv
 
 @NECKS.register_module
-class FPXN(nn.Module):
+class FuseFPN(nn.Module):
     """BFP (Balanced Feature Pyrmamids)
 
     BFP takes multi-level features as inputs and gather them into a single one,
@@ -32,43 +32,45 @@ class FPXN(nn.Module):
                  in_channels =256,
                  num_levels = 5,
                  out_channels = 256,
-                 rescale_level=2,
-                 rescale_ratio=4,
-                 top_conv = False,
-                 after_add = False,
+                 final_combine = 'concat',
                  conv_cfg=None,
                  norm_cfg=None):
-        super(FPXN, self).__init__()
+        super(FuseFPN, self).__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.num_levels = num_levels
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
-        self.rescale_level = rescale_level
-        self.rescale_ratio = rescale_ratio
-        self.rescale_channel = in_channels // rescale_ratio
-        self.assemble_channel = self.rescale_channel * self.num_levels
-        self.top_conv = top_conv
-        self.after_add = after_add
+        self.final_combine = final_combine
 
         assert 0 <= self.rescale_level < self.num_levels
+        mid_channels = self.in_channels // 2
+        self.res = nn.Sequential(
+            ConvModule(self.in_channels, self.in_channels, 3, 1, padding=1,
+                       conv_cfg=conv_cfg, norm_cfg=norm_cfg),
+            ConvModule(self.in_channels, mid_channels, 1, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg),
+            ConvModule(mid_channels, self.out_channels, 3, 1, padding=1,
+                       conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        )
+        self.combine = ConvModule(self.in_channels*2, self.in_channels, 1, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+
         self.conv1 = nn.ModuleList()
         self.conv2 = nn.ModuleList()
-        if self.top_conv:
+        if self.final_combine == 'concat':
             self.conv3 = nn.ModuleList()
 
         for i in range(self.num_levels):
             conv1 = ConvModule(
                 self.in_channels,
-                self.rescale_channel,
+                self.in_channels,
                 1,
                 1,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg
             )
             conv2 = ConvModule(
-                self.assemble_channel,
+                self.in_channels,
                 self.out_channels,
                 1,
                 1,
@@ -77,71 +79,36 @@ class FPXN(nn.Module):
             )
             self.conv1.append(conv1)
             self.conv2.append(conv2)
-            if self.top_conv:
-                t_conv = ConvModule(
-                    self.out_channels,
-                    self.out_channels,
-                    1,
-                    1,
-                    conv_cfg=conv_cfg,
-                    norm_cfg=norm_cfg
-                )
-                self.conv3.append(t_conv)
+            if self.final_combine == 'concat':
+                conv3 = ConvModule(self.in_channels*2,
+                                   self.in_channels,
+                                   1,
+                                   1,
+                                   conv_cfg=conv_cfg,
+                                   norm_cfg=norm_cfg
+                                   )
+                self.conv3.append(conv3)
+
 
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 xavier_init(m, distribution='uniform')
 
-    def forward(self, inputs):
-        assert len(inputs) == self.num_levels
+    def forward(self, feats, semantic_feats):
+        assert len(feats) == self.num_levels
+        semantic_feats = torch.cat([self.res(semantic_feats), semantic_feats], dim=1)
+        semantic_feats = self.combine(semantic_feats)
 
         # step 1: gather multi-level features by resize and average
-        feats = [self.conv1[i](inputs[i]) for i in range(self.num_levels)]
-        gather_size = inputs[self.refine_level].size()[2:]
-        feats = [F.adaptive_max_pool2d(feats[i], gather_size) if i<self.rescale_level
-                 else F.interpolate(feats[i], gather_size)
-                 for i in range(self.num_levels)]
-        feats = torch.cat(feats, dim=1)
-        feats = self.conv2(feats)
-        if self.top_conv:
-            if self.after_add:
-                outs = [self.conv3[i](inputs[i] + F.interpolate(feats, inputs[i].size()[2:])) if i<=self.rescale_level
-                        else self.conv3[i](inputs[i] + F.adaptive_max_pool2d(feats, inputs[i].size()[2:]))
-                        for i in range(self.num_levels)]
-            else:
-                outs = [inputs[i] + F.interpolate(self.conv3[i](feats), inputs[i].size()[2:]) if i<=self.rescale_level
-                        else inputs[i] + F.adaptive_max_pool2d(self.conv3[i](feats), inputs[i].size()[2:])
-                        for i in range(self.num_levels)]
-        else:
-            outs = [inputs[i] + F.interpolate(feats, inputs[i].size()[2:]) if i<=self.rescale_level
-                    else inputs[i] + F.adaptive_max_pool2d(feats, inputs[i].size()[2:])
+        semantic_feats = [self.conv1[i](semantic_feats) for i in range(self.num_levels)]
+        if self.final_combine == 'concat':
+            outs = [torch.cat([F.interpolate(semantic_feats[i], feats[i].size()[-2:], mode='bilinear'), feats[i]], dim=1)
                     for i in range(self.num_levels)]
+            outs = [self.conv3[i](outs[i]) for i in range(self.num_levels)]
+        else:
+            outs = [F.interpolate(semantic_feats[i], feats[i].size()[-2:], mode='bilinear') + feats[i] for i in range(self.num_levels)]
+        outs = [self.conv2[i](outs[i]) for i in range(self.num_levels)]
 
         return tuple(outs)
-        # for i in range(self.num_levels):
-        #     if i < self.refine_level:
-        #         gathered = F.adaptive_max_pool2d(
-        #             inputs[i], output_size=gather_size)
-        #     else:
-        #         gathered = F.interpolate(
-        #             inputs[i], size=gather_size, mode='nearest')
-        #     feats.append(gathered)
 
-        # bsf = sum(feats) / len(feats)
-        #
-        # # step 2: refine gathered features
-        # if self.refine_type is not None:
-        #     bsf = self.refine(bsf)
-        #
-        # # step 3: scatter refined features to multi-levels by a residual path
-        # outs = []
-        # for i in range(self.num_levels):
-        #     out_size = inputs[i].size()[2:]
-        #     if i < self.refine_level:
-        #         residual = F.interpolate(bsf, size=out_size, mode='nearest')
-        #     else:
-        #         residual = F.adaptive_max_pool2d(bsf, output_size=out_size)
-        #     outs.append(residual + inputs[i])
-        #
-        # return tuple(outs)
