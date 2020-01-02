@@ -166,16 +166,16 @@ class SHRCNN(TwoStageDetector):
             losses.update(loss_mask)
 
             # mask iou head forward and loss
-            pos_mask_pred = mask_pred[range(mask_pred.size(0)), pos_labels]
-            mask_iou_pred = self.mask_iou_head(mask_feats, pos_mask_pred)
-            pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
-                                                    ), pos_labels]
-            mask_iou_targets = self.mask_iou_head.get_target(
-                sampling_results, gt_masks, pos_mask_pred, mask_targets,
-                self.train_cfg.rcnn)
-            loss_mask_iou = self.mask_iou_head.loss(pos_mask_iou_pred,
-                                                    mask_iou_targets)
-            losses.update(loss_mask_iou)
+            # pos_mask_pred = mask_pred[range(mask_pred.size(0)), pos_labels]
+            # mask_iou_pred = self.mask_iou_head(mask_feats, pos_mask_pred)
+            # pos_mask_iou_pred = mask_iou_pred[range(mask_iou_pred.size(0)
+            #                                         ), pos_labels]
+            # mask_iou_targets = self.mask_iou_head.get_target(
+            #     sampling_results, gt_masks, pos_mask_pred, mask_targets,
+            #     self.train_cfg.rcnn)
+            # loss_mask_iou = self.mask_iou_head.loss(pos_mask_iou_pred,
+            #                                         mask_iou_targets)
+            # losses.update(loss_mask_iou)
         return losses
 
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
