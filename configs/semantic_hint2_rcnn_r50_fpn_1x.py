@@ -31,6 +31,12 @@ model = dict(
         num_levels=5,
         final_combine='concat',
     ),
+    semantic_roi_extractor=dict(
+        type='SingleRoIExtractor',
+        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
+        out_channel=183,
+        feature_stride=[8],
+    ),
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
@@ -49,7 +55,7 @@ model = dict(
         out_channels=256,
         featmap_strides=[4, 8, 16, 32]),
     bbox_head=dict(
-        type='SharedFCBBoxHead',
+        type='SharedFCBBoxHead_MH',
         num_fcs=2,
         in_channels=256,
         fc_out_channels=1024,

@@ -6,8 +6,9 @@ from .bbox_head import BBoxHead
 import torch
 import torch.nn.functional as F
 import mmcv
-from mmdet.core import mask_target, mask_bg_target, force_fp32, bbox_target
+from mmdet.core import mask_target, mask_bg_target, force_fp32, bbox_target, bbox_overlaps
 from ..losses import accuracy
+from ..builder import build_loss
 
 
 @HEADS.register_module
@@ -27,12 +28,15 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  num_cls_fcs=0,
                  num_reg_convs=0,
                  num_reg_fcs=0,
+                 using_mask = True,
+                 with_IoU = False,
                  conv_out_channels=256,
                  fc_out_channels=1024,
                  conv_cfg=None,
                  norm_cfg=None,
                  using_bg=False,
                  using_refine=True,
+                 loss_iou = dict(type='MSELoss', loss_weight=0.5),
                  *args,
                  **kwargs):
         super(ConvFCBBoxHead_MH, self).__init__(*args, **kwargs)
@@ -45,6 +49,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
         if not self.with_reg:
             assert num_reg_convs == 0 and num_reg_fcs == 0
         self.num_shared_convs = num_shared_convs
+        self.using_mask = using_mask
         self.num_shared_fcs = num_shared_fcs
         self.num_cls_convs = num_cls_convs
         self.num_cls_fcs = num_cls_fcs
@@ -56,9 +61,14 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.norm_cfg = norm_cfg
         self.using_bg = using_bg
         self.using_refine = using_refine
+        self.with_IoU = with_IoU
+        if with_IoU:
+            self.iou_loss = build_loss(loss_iou)
 
         # add shared convs and fcs
-        self.combine = ConvModule(336, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        combine_channels = 336 if self.using_mask else 256
+        self.combine = ConvModule(combine_channels, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
                 self.num_shared_convs, self.num_shared_fcs, self.in_channels,
@@ -89,6 +99,9 @@ class ConvFCBBoxHead_MH(BBoxHead):
             out_dim_reg = (4 if self.reg_class_agnostic else 4 *
                            self.num_classes)
             self.fc_reg = nn.Linear(self.reg_last_dim, out_dim_reg)
+        if self.with_IoU:
+            self.IoU_reg = nn.Linear(self.reg_last_dim, self.num_classes)
+
 
     def _add_conv_fc_branch(self,
                             num_branch_convs,
@@ -173,6 +186,17 @@ class ConvFCBBoxHead_MH(BBoxHead):
                 reduction_override=reduction_override)
         return losses
 
+    #TODO: add IoU target aquire and loss calculation
+    def get_iou_target(self, sampling_reuslt, bbox_pred, bbox_target):
+        pos_proposals = [res.pos_bboxes for res in sampling_reuslt]
+        pos_assigned_gt_inds = [
+            res.pos_gt_assigned_gt_inds for res in sampling_reuslt
+        ]
+        # bbox_overlaps()
+
+
+
+
     def get_mask_target(self, sampling_results, gt_masks, rcnn_train_cfg):
         # pos_proposals = [res.pos_bboxes for res in sampling_results]
         # pos_assigned_gt_inds = [
@@ -210,13 +234,14 @@ class ConvFCBBoxHead_MH(BBoxHead):
 
     def forward(self, x, mask_pred):
         # shared part
-        H,W = x.size()[-2:]
-        if len(mask_pred.size()) == 3:
-            mask_pred = mask_pred[:,None,:,:]
-        if len(mask_pred.size()) == 2:
-            mask_pred = mask_pred[None, None, :,:]
-        mask_pred = F.interpolate(mask_pred,(H,W))
-        x = torch.cat([x, mask_pred], dim=1)
+        if self.using_mask:
+            H,W = x.size()[-2:]
+            if len(mask_pred.size()) == 3:
+                mask_pred = mask_pred[:,None,:,:]
+            if len(mask_pred.size()) == 2:
+                mask_pred = mask_pred[None, None, :,:]
+            mask_pred = F.interpolate(mask_pred,(H,W))
+            x = torch.cat([x, mask_pred], dim=1)
         x = self.combine(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
@@ -252,6 +277,9 @@ class ConvFCBBoxHead_MH(BBoxHead):
 
         cls_score = self.fc_cls(x_cls) if self.with_cls else None
         bbox_pred = self.fc_reg(x_reg) if self.with_reg else None
+        if self.with_IoU:
+            IoU_pred = self.IoU_reg(x_reg)
+            return cls_score, bbox_pred, IoU_pred
         return cls_score, bbox_pred
 
 

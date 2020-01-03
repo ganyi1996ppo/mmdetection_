@@ -12,7 +12,7 @@ class SHRCNN(TwoStageDetector):
 
     https://arxiv.org/abs/1903.00241
     """
-
+    #TODO: add semantic backgorund predict into the scope to improve the map
     def __init__(self,
                  backbone,
                  rpn_head,
@@ -24,6 +24,8 @@ class SHRCNN(TwoStageDetector):
                  test_cfg,
                  semantic_head,
                  fuse_neck,
+                 semantic_roi_extractor=None,
+                 # with_bg=False,
                  neck=None,
                  shared_head=None,
                  pretrained=None):
@@ -44,6 +46,10 @@ class SHRCNN(TwoStageDetector):
         self.fuse_neck = builder.build_neck(fuse_neck)
         self.fuse_neck.init_weights()
         self.semantic_head.init_weights()
+        # self.with_bg = with_bg
+        if semantic_roi_extractor:
+            self.semantic_roi_extractor = builder.build_roi_extractor(semantic_roi_extractor)
+            self.semantic_extract = True
 
     def forward_dummy(self, img):
         raise NotImplementedError
@@ -73,6 +79,7 @@ class SHRCNN(TwoStageDetector):
         loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
         losses['loss_semantic_seg'] = loss_seg
         x = self.fuse_neck(x, semantic_feats)
+        semantic_pred = semantic_pred.detach()
 
         # RPN forward and loss
         if self.with_rpn:
@@ -120,7 +127,19 @@ class SHRCNN(TwoStageDetector):
                 x[:self.bbox_roi_extractor.num_inputs], rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+
+            if self.semantic_extract:
+                semantic_rois = self.semantic_roi_extractor(semantic_pred[:self.semantic_roi_extractor.num_inputs], rois)
+                _, sem_feats = torch.max(semantic_rois, dim=1)
+                sem_feats = torch.zeros(sem_feats.size(0), 183,
+                                        sem_feats.size(2), sem_feats.size(3)).scatter_(1,sem_feats,1)
+                fg_feats = sem_feats[:, 1:91, :, :]
+                # bg_feats = sem_feats[:,91:,:,:]
+                _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
+                fg_feats = fg_feats[:,inds,:,:]
+                cls_score, bbox_pred = self.bbox_head(bbox_feats, fg_feats)
+            else:
+                cls_score, bbox_pred = self.bbox_head(bbox_feats)
 
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                      gt_bboxes, gt_labels,
