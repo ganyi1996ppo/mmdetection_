@@ -32,7 +32,7 @@ class FuseFPN(nn.Module):
                  in_channels =256,
                  num_levels = 5,
                  out_channels = 256,
-                 final_combine = 'concat',
+                 final_combine = 'add',
                  conv_cfg=None,
                  norm_cfg=None):
         super(FuseFPN, self).__init__()
@@ -52,7 +52,7 @@ class FuseFPN(nn.Module):
             ConvModule(mid_channels, self.out_channels, 3, 1, padding=1,
                        conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         )
-        self.combine = ConvModule(self.in_channels*2, self.in_channels, 1, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        # self.combine = ConvModule(self.in_channels*2, self.in_channels, 1, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
 
         self.conv1 = nn.ModuleList()
         self.conv2 = nn.ModuleList()
@@ -96,9 +96,7 @@ class FuseFPN(nn.Module):
 
     def forward(self, feats, semantic_feats):
         assert len(feats) == self.num_levels
-        semantic_feats = torch.cat([self.res(semantic_feats), semantic_feats], dim=1)
-        semantic_feats = self.combine(semantic_feats)
-
+        semantic_feats = self.res(semantic_feats) + semantic_feats
         # step 1: gather multi-level features by resize and average
         semantic_feats = [self.conv1[i](semantic_feats) for i in range(self.num_levels)]
         if self.final_combine == 'concat':
