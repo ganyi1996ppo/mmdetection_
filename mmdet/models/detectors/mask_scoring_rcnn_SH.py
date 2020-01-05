@@ -134,11 +134,12 @@ class SHRCNN(TwoStageDetector):
                 bbox_feats = self.shared_head(bbox_feats)
 
             if self.semantic_extract:
-                semantic_rois = self.semantic_roi_extractor(semantic_pred[:self.semantic_roi_extractor.num_inputs], rois)
-                _, sem_feats = torch.max(semantic_rois, dim=1)
+                _, sem_feats = torch.max(semantic_pred, dim=1)
                 sem_feats = torch.zeros(sem_feats.size(0), 183,
                                         sem_feats.size(2), sem_feats.size(3)).scatter_(1,sem_feats,1)
                 fg_feats = sem_feats[:, 1:91, :, :]
+                fg_feats = self.semantic_roi_extractor(fg_feats[:self.semantic_roi_extractor.num_inputs],
+                                                            rois)
                 # bg_feats = sem_feats[:,91:,:,:]
                 # _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
                 # fg_feats = fg_feats[:,inds,:,:]
@@ -202,19 +203,53 @@ class SHRCNN(TwoStageDetector):
             # losses.update(loss_mask_iou)
         return losses
 
+    def simple_seg_test_bboxes(self,
+                           x,
+                           img_meta,
+                           proposals,
+                           seg_feats,
+                           rcnn_test_cfg,
+                           rescale=False):
+        """Test only det bboxes without augmentation."""
+        rois = bbox2roi(proposals)
+        roi_feats = self.bbox_roi_extractor(
+            x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
+        if self.with_shared_head:
+            roi_feats = self.shared_head(roi_feats)
+        cls_score, bbox_pred = self.bbox_head(roi_feats)
+        img_shape = img_meta[0]['img_shape']
+        scale_factor = img_meta[0]['scale_factor']
+        det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
+            rois,
+            cls_score,
+            bbox_pred,
+            img_shape,
+            scale_factor,
+            rescale=rescale,
+            cfg=rcnn_test_cfg)
+        return det_bboxes, det_labels
+
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
         """Test without augmentation."""
         assert self.with_bbox, "Bbox head must be implemented."
 
         x = self.extract_feat(img)
 
-        _, semantic_feats = self.semantic_head(x)
-        x = self.fuse_neck(x, semantic_feats)
+        semantic_pred, semantic_feats = self.semantic_head(x)
+        if self.augneck:
+            x = self.fuse_neck(x, semantic_feats)
         proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
-
-        det_bboxes, det_labels = self.simple_test_bboxes(
-            x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
+        if self.semantic_extract:
+            semantic_rois = self.semantic_roi_extractor(semantic_pred[:self.semantic_roi_extractor.num_inputs], rois)
+            _, sem_feats = torch.max(semantic_rois, dim=1)
+            sem_feats = torch.zeros(sem_feats.size(0), 183,
+                                    sem_feats.size(2), sem_feats.size(3)).scatter_(1, sem_feats, 1)
+            fg_feats = sem_feats[:, 1:91, :, :]
+            det_bboxes, det_labels = self.simple_seg_test_bboxes(
+                x, img_meta, proposal_list, fg_feats, self.test_cfg.rcnn, rescale=rescale)
+            det_bboxes, det_labels = self.simple_test_bboxes(
+                x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
         bbox_results = bbox2result(det_bboxes, det_labels,
                                    self.bbox_head.num_classes)
 
