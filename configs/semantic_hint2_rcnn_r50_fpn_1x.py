@@ -31,12 +31,7 @@ model = dict(
         num_levels=5,
         final_combine='concat',
     ),
-    semantic_roi_extractor=dict(
-        type='SingleRoIExtractor',
-        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
-        out_channels=183,
-        feature_strides=[8],
-    ),
+
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
@@ -67,6 +62,12 @@ model = dict(
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)),
+    semantic_roi_extractor=dict(
+        type='SingleRoIExtractor',
+        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
+        out_channels=183,
+        featmap_strides=[8],
+    ),
     mask_roi_extractor=dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=14, sample_num=2),
