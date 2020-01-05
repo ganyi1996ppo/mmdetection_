@@ -35,7 +35,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=183,
-        feature_stride=[8],
+        feature_strides=[8],
     ),
     rpn_head=dict(
         type='RPNHead',
