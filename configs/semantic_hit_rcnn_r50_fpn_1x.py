@@ -14,6 +14,7 @@ model = dict(
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
+
     semantic_head=dict(
         type='FusedSemanticHead',
         num_ins=5,
@@ -29,7 +30,7 @@ model = dict(
         in_channels=256,
         out_channels=256,
         num_levels=5,
-        final_combine='concat',
+        # final_combine='concat',
     ),
     rpn_head=dict(
         type='RPNHead',
@@ -137,7 +138,7 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True, with_seg=True),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
-    dict(type='RandomFlip', flip_ratio=0.5),
+    dict(type='RandomFlip'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='SegResizeFlipPadRescale', scale_factor=1 / 8),
@@ -152,7 +153,7 @@ test_pipeline = [
         flip=False,
         transforms=[
             dict(type='Resize', keep_ratio=True),
-            dict(type='RandomFlip', filp_ratio=0.5),
+            dict(type='RandomFlip'),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32),
             dict(type='ImageToTensor', keys=['img']),

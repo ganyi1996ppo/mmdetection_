@@ -23,7 +23,7 @@ class SHRCNN(TwoStageDetector):
                  train_cfg,
                  test_cfg,
                  semantic_head,
-                 fuse_neck,
+                 fuse_neck=None,
                  semantic_roi_extractor=None,
                  # with_bg=False,
                  neck=None,
@@ -43,8 +43,12 @@ class SHRCNN(TwoStageDetector):
             pretrained=pretrained)
 
         self.semantic_head = builder.build_head(semantic_head)
-        self.fuse_neck = builder.build_neck(fuse_neck)
-        self.fuse_neck.init_weights()
+        self.semantic_roi_extractor=False
+        self.augneck = False
+        if fuse_neck:
+            self.fuse_neck = builder.build_neck(fuse_neck)
+            self.augneck = True
+            self.fuse_neck.init_weights()
         self.semantic_head.init_weights()
         # self.with_bg = with_bg
         if semantic_roi_extractor:
@@ -78,7 +82,8 @@ class SHRCNN(TwoStageDetector):
         semantic_pred, semantic_feats = self.semantic_head(x)
         loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
         losses['loss_semantic_seg'] = loss_seg
-        x = self.fuse_neck(x, semantic_feats)
+        if self.fuse_neck:
+            x = self.fuse_neck(x, semantic_feats)
         semantic_pred = semantic_pred.detach()
 
         # RPN forward and loss
@@ -135,8 +140,8 @@ class SHRCNN(TwoStageDetector):
                                         sem_feats.size(2), sem_feats.size(3)).scatter_(1,sem_feats,1)
                 fg_feats = sem_feats[:, 1:91, :, :]
                 # bg_feats = sem_feats[:,91:,:,:]
-                _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
-                fg_feats = fg_feats[:,inds,:,:]
+                # _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
+                # fg_feats = fg_feats[:,inds,:,:]
                 cls_score, bbox_pred = self.bbox_head(bbox_feats, fg_feats)
             else:
                 cls_score, bbox_pred = self.bbox_head(bbox_feats)

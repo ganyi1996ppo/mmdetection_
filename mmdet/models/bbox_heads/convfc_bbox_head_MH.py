@@ -66,7 +66,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
             self.iou_loss = build_loss(loss_iou)
 
         # add shared convs and fcs
-        combine_channels = 336 if self.using_mask else 256
+        combine_channels = 346 if self.using_mask else 256
         self.combine = ConvModule(combine_channels, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
 
         self.shared_convs, self.shared_fcs, last_layer_dim = \
