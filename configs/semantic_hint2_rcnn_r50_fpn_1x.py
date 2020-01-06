@@ -23,14 +23,14 @@ model = dict(
         conv_out_channels=256,
         num_classes=183,
         ignore_label=255,
-        loss_weight=0.2),
-    fuse_neck=dict(
-        type= 'FuseFPN',
-        in_channels=256,
-        out_channels=256,
-        num_levels=5,
-        final_combine='concat',
-    ),
+        loss_weight=0.8),
+    # fuse_neck=dict(
+    #     type= 'FuseFPN',
+    #     in_channels=256,
+    #     out_channels=256,
+    #     num_levels=5,
+    #     final_combine='concat',
+    # ),
 
     rpn_head=dict(
         type='RPNHead',

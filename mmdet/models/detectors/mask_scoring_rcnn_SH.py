@@ -82,7 +82,7 @@ class SHRCNN(TwoStageDetector):
         semantic_pred, semantic_feats = self.semantic_head(x)
         loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
         losses['loss_semantic_seg'] = loss_seg
-        if self.fuse_neck:
+        if self.augneck:
             x = self.fuse_neck(x, semantic_feats)
         semantic_pred = semantic_pred.detach()
 
@@ -135,15 +135,16 @@ class SHRCNN(TwoStageDetector):
 
             if self.semantic_extract:
                 _, sem_feats = torch.max(semantic_pred, dim=1)
-                sem_feats = torch.zeros(sem_feats.size(0), 183,
-                                        sem_feats.size(2), sem_feats.size(3)).scatter_(1,sem_feats,1)
-                fg_feats = sem_feats[:, 1:91, :, :]
-                fg_feats = self.semantic_roi_extractor(fg_feats[:self.semantic_roi_extractor.num_inputs],
-                                                            rois)
-                # bg_feats = sem_feats[:,91:,:,:]
-                # _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
-                # fg_feats = fg_feats[:,inds,:,:]
+                sem_feats = sem_feats[:,None,:,:]
+                sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
+                                        sem_feats.size(3)).to(sem_feats.device).scatter_(1,sem_feats,1)
+                fg_feats = sem_feats[:, 1:91, :, :].contiguous()
+                fg_feats = self.semantic_roi_extractor([fg_feats],rois)
+                _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
+                fg_feats = fg_feats[torch.arange(fg_feats.size(0)),inds,:,:]
+                fg_feats = fg_feats[:,None,:,:]
                 cls_score, bbox_pred = self.bbox_head(bbox_feats, fg_feats)
+
             else:
                 cls_score, bbox_pred = self.bbox_head(bbox_feats)
 
@@ -216,7 +217,7 @@ class SHRCNN(TwoStageDetector):
             x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
         if self.with_shared_head:
             roi_feats = self.shared_head(roi_feats)
-        cls_score, bbox_pred = self.bbox_head(roi_feats)
+        cls_score, bbox_pred = self.bbox_head(roi_feats, seg_feats)
         img_shape = img_meta[0]['img_shape']
         scale_factor = img_meta[0]['scale_factor']
         det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
@@ -243,11 +244,13 @@ class SHRCNN(TwoStageDetector):
         if self.semantic_extract:
             semantic_rois = self.semantic_roi_extractor(semantic_pred[:self.semantic_roi_extractor.num_inputs], rois)
             _, sem_feats = torch.max(semantic_rois, dim=1)
-            sem_feats = torch.zeros(sem_feats.size(0), 183,
-                                    sem_feats.size(2), sem_feats.size(3)).scatter_(1, sem_feats, 1)
-            fg_feats = sem_feats[:, 1:91, :, :]
+            sem_feats = sem_feats[:,None,:,:]
+            sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
+                                    sem_feats.size(3)).to(sem_feats.device).scatter_(1, sem_feats, 1)
+            fg_feats = sem_feats[:, 1:91, :, :].contiguous()
             det_bboxes, det_labels = self.simple_seg_test_bboxes(
                 x, img_meta, proposal_list, fg_feats, self.test_cfg.rcnn, rescale=rescale)
+        else:
             det_bboxes, det_labels = self.simple_test_bboxes(
                 x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
         bbox_results = bbox2result(det_bboxes, det_labels,

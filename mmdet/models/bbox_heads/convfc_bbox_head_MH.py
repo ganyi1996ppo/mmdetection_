@@ -32,6 +32,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  with_IoU = False,
                  conv_out_channels=256,
                  fc_out_channels=1024,
+                 mask_conv=3,
                  conv_cfg=None,
                  norm_cfg=None,
                  using_bg=False,
@@ -66,8 +67,12 @@ class ConvFCBBoxHead_MH(BBoxHead):
             self.iou_loss = build_loss(loss_iou)
 
         # add shared convs and fcs
-        combine_channels = 346 if self.using_mask else 256
-        self.combine = ConvModule(combine_channels, 256, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        combine_channels = 257 if self.using_mask else 256
+        self.combine = ConvModule(combine_channels, conv_out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        self.mask_conv = nn.ModuleList()
+        for i in range(mask_conv):
+            conv_m = ConvModule(1, 1, 3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+            self.mask_conv.append(conv_m)
 
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
@@ -152,39 +157,39 @@ class ConvFCBBoxHead_MH(BBoxHead):
                     nn.init.xavier_uniform_(m.weight)
                     nn.init.constant_(m.bias, 0)
 
-    @force_fp32(apply_to=('cls_score', 'bbox_pred'))
-    def loss(self,
-             cls_score,
-             bbox_pred,
-             labels,
-             label_weights,
-             bbox_targets,
-             bbox_weights,
-             reduction_override=None):
-        losses = dict()
-        if cls_score is not None:
-            avg_factor = max(torch.sum(label_weights > 0).float().item(), 1.)
-            losses['loss_cls_refine'] = self.loss_cls(
-                cls_score,
-                labels,
-                label_weights,
-                avg_factor=avg_factor,
-                reduction_override=reduction_override)
-            losses['acc_refine'] = accuracy(cls_score, labels)
-        if bbox_pred is not None:
-            pos_inds = labels > 0
-            if self.reg_class_agnostic:
-                pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), 4)[pos_inds]
-            else:
-                pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), -1,
-                                               4)[pos_inds, labels[pos_inds]]
-            losses['loss_bbox_refine'] = self.loss_bbox(
-                pos_bbox_pred,
-                bbox_targets[pos_inds],
-                bbox_weights[pos_inds],
-                avg_factor=bbox_targets.size(0),
-                reduction_override=reduction_override)
-        return losses
+    # @force_fp32(apply_to=('cls_score', 'bbox_pred'))
+    # def loss(self,
+    #          cls_score,
+    #          bbox_pred,
+    #          labels,
+    #          label_weights,
+    #          bbox_targets,
+    #          bbox_weights,
+    #          reduction_override=None):
+    #     losses = dict()
+    #     if cls_score is not None:
+    #         avg_factor = max(torch.sum(label_weights > 0).float().item(), 1.)
+    #         losses['loss_cls_refine'] = self.loss_cls(
+    #             cls_score,
+    #             labels,
+    #             label_weights,
+    #             avg_factor=avg_factor,
+    #             reduction_override=reduction_override)
+    #         losses['acc_refine'] = accuracy(cls_score, labels)
+    #     if bbox_pred is not None:
+    #         pos_inds = labels > 0
+    #         if self.reg_class_agnostic:
+    #             pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), 4)[pos_inds]
+    #         else:
+    #             pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), -1,
+    #                                            4)[pos_inds, labels[pos_inds]]
+    #         losses['loss_bbox_refine'] = self.loss_bbox(
+    #             pos_bbox_pred,
+    #             bbox_targets[pos_inds],
+    #             bbox_weights[pos_inds],
+    #             avg_factor=bbox_targets.size(0),
+    #             reduction_override=reduction_override)
+    #     return losses
 
     #TODO: add IoU target aquire and loss calculation
     def get_iou_target(self, sampling_reuslt, bbox_pred, bbox_target):
@@ -213,34 +218,30 @@ class ConvFCBBoxHead_MH(BBoxHead):
         mask_bg_targets = mask_bg_target(proposals, gt_masks, rcnn_train_cfg)
         return mask_targets, mask_bg_targets
 
-    def get_target(self, sampling_results, gt_bboxes, gt_labels,
-                   rcnn_train_cfg):
-        pos_proposals = [res.pos_bboxes for res in sampling_results]
-        neg_proposals = [torch.tensor([]) for res in sampling_results]
-        pos_gt_bboxes = [res.pos_gt_bboxes for res in sampling_results]
-        pos_gt_labels = [res.pos_gt_labels for res in sampling_results]
-        reg_classes = 1 if self.reg_class_agnostic else self.num_classes
-        cls_reg_targets = bbox_target(
-            pos_proposals,
-            neg_proposals,
-            pos_gt_bboxes,
-            pos_gt_labels,
-            rcnn_train_cfg,
-            reg_classes,
-            target_means=self.target_means,
-            target_stds=self.target_stds)
-        return cls_reg_targets
+    # def get_target(self, sampling_results, gt_bboxes, gt_labels,
+    #                rcnn_train_cfg):
+    #     pos_proposals = [res.pos_bboxes for res in sampling_results]
+    #     neg_proposals = [torch.tensor([]) for res in sampling_results]
+    #     pos_gt_bboxes = [res.pos_gt_bboxes for res in sampling_results]
+    #     pos_gt_labels = [res.pos_gt_labels for res in sampling_results]
+    #     reg_classes = 1 if self.reg_class_agnostic else self.num_classes
+    #     cls_reg_targets = bbox_target(
+    #         pos_proposals,
+    #         neg_proposals,
+    #         pos_gt_bboxes,
+    #         pos_gt_labels,
+    #         rcnn_train_cfg,
+    #         reg_classes,
+    #         target_means=self.target_means,
+    #         target_stds=self.target_stds)
+    #     return cls_reg_targets
 
 
     def forward(self, x, mask_pred):
         # shared part
         if self.using_mask:
-            H,W = x.size()[-2:]
-            if len(mask_pred.size()) == 3:
-                mask_pred = mask_pred[:,None,:,:]
-            if len(mask_pred.size()) == 2:
-                mask_pred = mask_pred[None, None, :,:]
-            mask_pred = F.interpolate(mask_pred,(H,W))
+            for conv in self.mask_conv:
+                mask_pred = conv(mask_pred)
             x = torch.cat([x, mask_pred], dim=1)
         x = self.combine(x)
         if self.num_shared_convs > 0:
