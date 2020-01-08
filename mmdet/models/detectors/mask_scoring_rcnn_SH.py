@@ -138,10 +138,9 @@ class SHRCNN(TwoStageDetector):
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
 
-            if self.semantic_extract:
-                if self.relation_head:
-                    relations = self.mask_relation_head(semantic_pred)
-                    relation_feats = self.semantic_roi_extractor([relations], rois)
+            if self.semantic_extract and self.relation_head:
+                relations = self.mask_relation_head(semantic_pred)
+                relation_feats = self.semantic_roi_extractor([relations], rois)
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:,None,:,:]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
@@ -151,7 +150,7 @@ class SHRCNN(TwoStageDetector):
                 # _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
                 # fg_feats = fg_feats[torch.arange(fg_feats.size(0)),inds,:,:]
                 # fg_feats = fg_feats[:,None,:,:]
-                    cls_score, bbox_pred = self.bbox_head(bbox_feats, relation_feats)
+                cls_score, bbox_pred = self.bbox_head(bbox_feats, relation_feats)
 
             else:
                 cls_score, bbox_pred = self.bbox_head(bbox_feats)
