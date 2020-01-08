@@ -23,7 +23,14 @@ model = dict(
         conv_out_channels=256,
         num_classes=183,
         ignore_label=255,
-        loss_weight=0.8),
+        loss_weight=0.2),
+    mask_relation_head=dict(
+        type = 'RelationHead',
+        num_convs=4,
+        in_channels=183,
+        conv_out_channels=256,
+        num_classes=183,
+    ),
     # fuse_neck=dict(
     #     type= 'FuseFPN',
     #     in_channels=256,
@@ -65,7 +72,7 @@ model = dict(
     semantic_roi_extractor=dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
-        out_channels=183,
+        out_channels=256,
         featmap_strides=[8],
     ),
     mask_roi_extractor=dict(
@@ -209,7 +216,7 @@ evaluation = dict(interval=1)
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/semantic_hint_rcnn_r50_fpn_1x'
+work_dir = './work_dirs/semantic_hint_relation_rcnn_r50_fpn_1x'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
