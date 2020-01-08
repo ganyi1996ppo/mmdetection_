@@ -8,9 +8,10 @@ from .fcn_mask_head_ca import FCNMaskHead_CA
 from .mask_iou_head_ca import MaskIoUHead_CA
 from .maskiou_head_MH import MaskIoUHead_MH
 from .fcn_mask_head_MH import FCNMaskHead_MH
+from .relation_head import RelationHead
 
 __all__ = [
     'FCNMaskHead', 'HTCMaskHead', 'FusedSemanticHead', 'GridHead',
     'MaskIoUHead', 'FCNMaskHead_back', 'FCNMaskHead_CA', 'MaskIoUHead_CA',
-    'MaskIoUHead_MH', 'FCNMaskHead_MH'
+    'MaskIoUHead_MH', 'FCNMaskHead_MH', 'RelationHead'
 ]

@@ -28,11 +28,12 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  num_cls_fcs=0,
                  num_reg_convs=0,
                  num_reg_fcs=0,
+                 mask_channels=256,
                  using_mask = True,
                  with_IoU = False,
                  conv_out_channels=256,
                  fc_out_channels=1024,
-                 mask_conv=3,
+                 # mask_conv=3,
                  conv_cfg=None,
                  norm_cfg=None,
                  using_bg=False,
@@ -63,16 +64,17 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.using_bg = using_bg
         self.using_refine = using_refine
         self.with_IoU = with_IoU
+        self.mask_channels = mask_channels
         if with_IoU:
             self.iou_loss = build_loss(loss_iou)
 
         # add shared convs and fcs
-        combine_channels = 257 if self.using_mask else 256
+        combine_channels = self.in_channels + self.mask_channels
         self.combine = ConvModule(combine_channels, conv_out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
-        self.mask_conv = nn.ModuleList()
-        for i in range(mask_conv):
-            conv_m = ConvModule(1, 1, 3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
-            self.mask_conv.append(conv_m)
+        # self.mask_conv = nn.ModuleList()
+        # for i in range(mask_conv):
+        #     conv_m = ConvModule(1, 1, 3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        #     self.mask_conv.append(conv_m)
 
         self.shared_convs, self.shared_fcs, last_layer_dim = \
             self._add_conv_fc_branch(
@@ -240,8 +242,8 @@ class ConvFCBBoxHead_MH(BBoxHead):
     def forward(self, x, mask_pred):
         # shared part
         if self.using_mask:
-            for conv in self.mask_conv:
-                mask_pred = conv(mask_pred)
+            # for conv in self.mask_conv:
+            #     mask_pred = conv(mask_pred)
             x = torch.cat([x, mask_pred], dim=1)
         x = self.combine(x)
         if self.num_shared_convs > 0:
