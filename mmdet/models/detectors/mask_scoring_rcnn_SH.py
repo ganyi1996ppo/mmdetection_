@@ -252,15 +252,17 @@ class SHRCNN(TwoStageDetector):
         if self.semantic_extract:
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
-                _, sem_feats = torch.max(semantic_pred, dim=1)
-                sem_feats = sem_feats[:, None, :, :]
-                sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
-                                        sem_feats.size(3)).to(sem_feats.device).scatter_(1, sem_feats, 1)
-                fg_feats = sem_feats[:, 1:91, :, :].contiguous()
-                fg_feats = self.semantic_roi_extractor([fg_feats], rois)
-                _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
-                fg_feats = fg_feats[torch.arange(fg_feats.size(0)), inds, :, :]
-                fg_feats = fg_feats[:, None, :, :]
+                relation_feats = self.mask_relation_head(semantic_pred)
+                relation_rois = self.semantic_roi_extractor([relation_feats], rois)
+                # _, sem_feats = torch.max(semantic_pred, dim=1)
+                # sem_feats = sem_feats[:, None, :, :]
+                # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
+                #                         sem_feats.size(3)).to(sem_feats.device).scatter_(1, sem_feats, 1)
+                # fg_feats = sem_feats[:, 1:91, :, :].contiguous()
+                # fg_feats = self.semantic_roi_extractor([fg_feats], rois)
+                # _, inds = torch.sum(fg_feats, (2, 3)).max(dim=1)
+                # fg_feats = fg_feats[torch.arange(fg_feats.size(0)), inds, :, :]
+                # fg_feats = fg_feats[:, None, :, :]
             # semantic_rois = self.semantic_roi_extractor(semantic_pred[:self.semantic_roi_extractor.num_inputs], rois)
             # _, sem_feats = torch.max(semantic_rois, dim=1)
             # sem_feats = sem_feats[:,None,:,:]
@@ -268,7 +270,7 @@ class SHRCNN(TwoStageDetector):
             #                         sem_feats.size(3)).to(sem_feats.device).scatter_(1, sem_feats, 1)
             # fg_feats = sem_feats[:, 1:91, :, :].contiguous()
                 det_bboxes, det_labels = self.simple_seg_test_bboxes(
-                x, img_meta, proposal_list, fg_feats, self.test_cfg.rcnn, rescale=rescale)
+                x, img_meta, proposal_list, relation_rois, self.test_cfg.rcnn, rescale=rescale)
         else:
             det_bboxes, det_labels = self.simple_test_bboxes(
                 x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
