@@ -86,12 +86,12 @@ class LoadAnnotations(object):
         gt_masks = results['ann_info']['masks']
         if self.poly2mask:
             gt_masks = [self._poly2mask(mask, h, w) for mask in gt_masks]
-        fg_mask = np.zeros_like(gt_masks[0])
+        fg = np.zeros_like(gt_masks[0])
         for mask in gt_masks:
-            fg_mask += mask
-        bg_mask = np.zeros_like(gt_masks[0])
-        bg_mask[fg_mask==0] = 1
-        gt_masks.append(bg_mask)
+            fg += mask
+        fg_mask = np.zeros_like(gt_masks[0])
+        fg_mask[fg>0] = 1
+        gt_masks.append(fg_mask)
 
         results['gt_masks'] = gt_masks
         results['mask_fields'].append('gt_masks')

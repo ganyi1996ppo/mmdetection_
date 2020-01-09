@@ -83,9 +83,7 @@ class SHRCNN(TwoStageDetector):
         x = self.extract_feat(img)
 
         losses = dict()
-        bg_masks = gt_masks[-1]
-        fg_masks = torch.zeros_like(bg_masks)
-        fg_masks[bg_masks==0] = 1
+        fg_masks = [gt_mask[-1] for gt_mask in gt_masks]
         semantic_pred= self.semantic_head(x)
         loss_seg = self.semantic_head.loss(semantic_pred, fg_masks)
         losses['loss_mask_seg'] = loss_seg

@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import kaiming_init
 from ..builder import build_loss
+import mmcv
+import numpy as np
 import torch
 
 from mmdet.core import auto_fp16, force_fp32
@@ -104,6 +106,10 @@ class FusedMaskHead(nn.Module):
 
     @force_fp32(apply_to=('mask_pred', ))
     def loss(self, mask_pred, labels):
-        labels = labels.squeeze(1).long()
-        loss_mask = self.loss_mask(mask_pred, labels, torch.zeros(mask_pred.size(0)))
+        # labels = labels.squeeze(1).long()
+        H,W = mask_pred.size()[-2:]
+        labels = [mmcv.imresize(label, (W,H), interpolation='nearest') for label in labels]
+        labels = np.stack(labels)
+        labels = torch.from_numpy(labels).to(mask_pred.device).float()
+        loss_mask = self.loss_mask(mask_pred, labels, torch.zeros(mask_pred.size(0)).long())
         return loss_mask
