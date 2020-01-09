@@ -83,12 +83,14 @@ class SHRCNN(TwoStageDetector):
         x = self.extract_feat(img)
 
         losses = dict()
-
-        semantic_pred, semantic_feats = self.semantic_head(x)
-        loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
-        losses['loss_semantic_seg'] = loss_seg
+        bg_masks = gt_masks[-1]
+        fg_masks = torch.zeros_like(bg_masks)
+        fg_masks[bg_masks==0] = 1
+        semantic_pred= self.semantic_head(x)
+        loss_seg = self.semantic_head.loss(semantic_pred, fg_masks)
+        losses['loss_mask_seg'] = loss_seg
         if self.augneck:
-            x = self.fuse_neck(x, semantic_feats)
+            x = self.fuse_neck(x)
         semantic_pred = semantic_pred.detach()
 
         # RPN forward and loss
@@ -138,9 +140,10 @@ class SHRCNN(TwoStageDetector):
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
 
-            if self.semantic_extract and self.relation_head:
-                relations = self.mask_relation_head(semantic_pred)
-                relation_feats = self.semantic_roi_extractor([relations], rois)
+            if self.semantic_extract:
+                    # and self.relation_head:
+                # relations = self.mask_relation_head(semantic_pred)
+                relation_feats = self.semantic_roi_extractor([semantic_pred], rois)
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:,None,:,:]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
@@ -243,16 +246,16 @@ class SHRCNN(TwoStageDetector):
 
         x = self.extract_feat(img)
 
-        semantic_pred, semantic_feats = self.semantic_head(x)
+        semantic_pred = self.semantic_head(x)
         if self.augneck:
-            x = self.fuse_neck(x, semantic_feats)
+            x = self.fuse_neck(x)
         proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
         if self.semantic_extract:
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
-                relation_feats = self.mask_relation_head(semantic_pred)
-                relation_rois = self.semantic_roi_extractor([relation_feats], rois)
+                # relation_feats = self.mask_relation_head(semantic_pred)
+                relation_rois = self.semantic_roi_extractor([semantic_pred], rois)
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:, None, :, :]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
