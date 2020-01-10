@@ -147,7 +147,7 @@ class ProtoRCNN(TwoStageDetector):
                     # and self.relation_head:
                 # relations = self.mask_relation_head(semantic_pred)
                 seg_feats = self.semantic_roi_extractor([semantic_pred], rois)
-                seg_feats = (seg_feats * coeffs).sum(dim=1,keepdim=True)
+                seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
 
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:,None,:,:]
