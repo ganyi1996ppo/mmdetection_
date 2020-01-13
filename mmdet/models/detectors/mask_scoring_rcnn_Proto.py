@@ -1,4 +1,5 @@
 import torch
+import  torch.nn.functional as F
 
 from mmdet.core import bbox2roi, build_assigner, build_sampler, bbox2result
 from .. import builder
@@ -26,10 +27,14 @@ class ProtoRCNN(TwoStageDetector):
                  fuse_neck=None,
                  semantic_roi_extractor=None,
                  mask_relation_head=None,
-                 # with_bg=False,
+                 rpn_proto=False,
+                 proto_combine = 'sum',
                  neck=None,
                  shared_head=None,
                  pretrained=None):
+
+        self.rpn_proto = rpn_proto
+        self.proto_combine = proto_combine
         super(ProtoRCNN, self).__init__(
             backbone=backbone,
             neck=neck,
@@ -45,6 +50,7 @@ class ProtoRCNN(TwoStageDetector):
 
         self.semantic_head = builder.build_head(semantic_head)
         self.semantic_roi_extractor=False
+
         self.augneck = False
         self.relation_head=False
         if mask_relation_head:
@@ -89,11 +95,13 @@ class ProtoRCNN(TwoStageDetector):
         losses['loss_mask_seg'] = loss_seg
         if self.augneck:
             x = self.fuse_neck(x)
-        semantic_pred = semantic_pred
 
         # RPN forward and loss
         if self.with_rpn:
-            rpn_cls, rpn_bbox, rpn_proto = self.rpn_head(x)
+            if self.rpn_proto:
+                rpn_cls, rpn_bbox, rpn_proto = self.rpn_head([torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x])
+            else:
+                rpn_cls, rpn_bbox, rpn_proto = self.rpn_head(x)
             rpn_loss_inputs = (rpn_cls, rpn_bbox) + (gt_bboxes, img_meta,
                                           self.train_cfg.rpn)
             rpn_losses = self.rpn_head.loss(
@@ -130,13 +138,13 @@ class ProtoRCNN(TwoStageDetector):
                     gt_labels[i],
                     feats=[lvl_feat[i][None] for lvl_feat in x])
                 sampling_results.append(sampling_result)
-                coeff_results.append(coeff[torch.cat([sampling_result.pos_inds, sampling_result.neg_inds],dim=1)])
+                coeff_results.append(coeff[torch.cat([sampling_result.pos_inds, sampling_result.neg_inds],dim=0)])
                 # proto_coeffs.append(coeff_list[i][sampling_result.pos_inds])
 
         # bbox head forward and loss
         if self.with_bbox:
             rois = bbox2roi([res.bboxes for res in sampling_results])
-            coeffs = torch.cat(coeffs, 0)
+            coeffs = torch.cat(coeff_results, 0)
             # TODO: a more flexible way to decide which feature maps to use
             bbox_feats = self.bbox_roi_extractor(
                 x[:self.bbox_roi_extractor.num_inputs], rois)
@@ -147,7 +155,10 @@ class ProtoRCNN(TwoStageDetector):
                     # and self.relation_head:
                 # relations = self.mask_relation_head(semantic_pred)
                 seg_feats = self.semantic_roi_extractor([semantic_pred], rois)
-                seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
+                if self.proto_combine == 'sum':
+                    seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
+                elif self.proto_combine == 'con':
+                    seg_feats = seg_feats * coeffs[:,:,None,None]
 
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:,None,:,:]
@@ -245,6 +256,12 @@ class ProtoRCNN(TwoStageDetector):
             cfg=rcnn_test_cfg)
         return det_bboxes, det_labels
 
+    def simple_test_rpn(self, x, img_meta, rpn_test_cfg):
+        rpn_out = self.rpn_head(x)
+        proposal_inputs = rpn_out + (img_meta, rpn_test_cfg)
+        proposal_list, params = self.rpn_head.get_bboxes(*proposal_inputs)
+        return proposal_list, params
+
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
         """Test without augmentation."""
         assert self.with_bbox, "Bbox head must be implemented."
@@ -254,13 +271,23 @@ class ProtoRCNN(TwoStageDetector):
         semantic_pred = self.semantic_head(x)
         if self.augneck:
             x = self.fuse_neck(x)
-        proposal_list = self.simple_test_rpn(
+        if self.rpn_proto:
+            proposal_list, params = self.simple_test_rpn(
+                [torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x], img_meta, self.test_cfg.rpn if proposals is None else proposals
+            )
+        else:
+            proposal_list, params = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
         if self.semantic_extract:
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
+                params = torch.cat(params,0)
                 # relation_feats = self.mask_relation_head(semantic_pred)
-                relation_rois = self.semantic_roi_extractor([semantic_pred], rois)
+                proto_rois = self.semantic_roi_extractor([semantic_pred], rois)
+                if self.proto_combine == 'sum':
+                    proto_rois = (proto_rois*params[:,:,None,None]).sum(dim=1, keepdim=True)
+                elif self.proto_combine == 'con':
+                    proto_rois = (proto_rois*params[:,:,None,None])
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:, None, :, :]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
@@ -277,7 +304,7 @@ class ProtoRCNN(TwoStageDetector):
             #                         sem_feats.size(3)).to(sem_feats.device).scatter_(1, sem_feats, 1)
             # fg_feats = sem_feats[:, 1:91, :, :].contiguous()
                 det_bboxes, det_labels = self.simple_seg_test_bboxes(
-                x, img_meta, proposal_list, relation_rois, self.test_cfg.rcnn, rescale=rescale)
+                x, img_meta, proposal_list, proto_rois, self.test_cfg.rcnn, rescale=rescale)
         else:
             det_bboxes, det_labels = self.simple_test_bboxes(
                 x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
