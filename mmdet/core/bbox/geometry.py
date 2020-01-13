@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
@@ -61,3 +62,35 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
             ious = overlap / (area1[:, None])
 
     return ious
+
+
+def mask_overlaps(pos_proposals, pos_assigned_gt_inds, gt_masks):
+    """Compute area ratio of the gt mask inside the proposal and the gt
+    mask of the corresponding instance"""
+    if len(pos_proposals.size()) == 1:
+        pos_proposals = pos_proposals[None, :]
+    num_pos = pos_proposals.size(0)
+    if num_pos > 0:
+        area_ratios = []
+        proposals_np = pos_proposals.cpu().numpy()
+        pos_assigned_gt_inds = pos_assigned_gt_inds.cpu().numpy()
+        if len(proposals_np.shape) == 1:
+            proposals_np = proposals_np[None, :]
+        # compute mask areas of gt instances (batch processing for speedup)
+        gt_instance_mask_area = np.array([gt_mask.sum((-1, -2)) for gt_mask in gt_masks])
+        for i in range(num_pos):
+            ind = pos_assigned_gt_inds[i]
+            gt_mask = gt_masks[ind]
+
+            # crop the gt mask inside the proposal
+            x1, y1, x2, y2 = proposals_np[i, :].astype(np.int32)
+            gt_mask_in_proposal = gt_mask[y1:y2 + 1, x1:x2 + 1]
+
+            ratio = gt_mask_in_proposal.sum() / (
+                    gt_instance_mask_area[ind] + 1e-7)
+            area_ratios.append(ratio)
+        area_ratios = torch.from_numpy(np.stack(area_ratios)).float().to(
+            pos_proposals.device)
+    else:
+        area_ratios = pos_proposals.new_zeros((0,))
+    return area_ratios
