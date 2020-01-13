@@ -6,14 +6,14 @@ from mmcv.cnn import normal_init
 from mmdet.core import delta2bbox
 from mmdet.ops import nms
 from ..registry import HEADS
-from .anchor_head import AnchorHead
+from .anchor_head_mask import AnchorHead_Mask
 
 
 @HEADS.register_module
-class RPNHead(AnchorHead):
+class RPNHead_Mask(AnchorHead_Mask):
 
     def __init__(self, in_channels, **kwargs):
-        super(RPNHead, self).__init__(2, in_channels, **kwargs)
+        super(RPNHead_Mask, self).__init__(2, in_channels, **kwargs)
 
     def _init_layers(self):
         self.rpn_conv = nn.Conv2d(
@@ -38,13 +38,15 @@ class RPNHead(AnchorHead):
              cls_scores,
              bbox_preds,
              gt_bboxes,
+             gt_masks,
              img_metas,
              cfg,
              gt_bboxes_ignore=None):
-        losses = super(RPNHead, self).loss(
+        losses = super(RPNHead_Mask, self).loss(
             cls_scores,
             bbox_preds,
             gt_bboxes,
+            gt_masks,
             None,
             img_metas,
             cfg,

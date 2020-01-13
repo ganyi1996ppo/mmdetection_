@@ -5,14 +5,14 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import normal_init
 
-from mmdet.core import (AnchorGenerator, anchor_target, delta2bbox, force_fp32,
+from mmdet.core import (AnchorGenerator, anchor_target_mask, delta2bbox, force_fp32,
                         multi_apply, multiclass_nms)
 from ..builder import build_loss
 from ..registry import HEADS
 
 
 @HEADS.register_module
-class AnchorHead(nn.Module):
+class AnchorHead_Mask(nn.Module):
     """Anchor-based head (RPN, RetinaNet, SSD, etc.).
 
     Args:
@@ -44,7 +44,7 @@ class AnchorHead(nn.Module):
                      loss_weight=1.0),
                  loss_bbox=dict(
                      type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0)):
-        super(AnchorHead, self).__init__()
+        super(AnchorHead_Mask, self).__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
         self.feat_channels = feat_channels
@@ -155,6 +155,7 @@ class AnchorHead(nn.Module):
              cls_scores,
              bbox_preds,
              gt_bboxes,
+             gt_masks,
              gt_labels,
              img_metas,
              cfg,
@@ -165,10 +166,11 @@ class AnchorHead(nn.Module):
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, img_metas)
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-        cls_reg_targets = anchor_target(
+        cls_reg_targets = anchor_target_mask(
             anchor_list,
             valid_flag_list,
             gt_bboxes,
+            gt_masks,
             img_metas,
             self.target_means,
             self.target_stds,
