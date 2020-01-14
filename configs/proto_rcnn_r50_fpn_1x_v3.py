@@ -129,6 +129,8 @@ train_cfg = dict(
         debug=False),
     proto=dict(
         mask_size=7,
+        mask_thr=0.5,
+        using_clamp=False
     ))
 test_cfg = dict(
     rpn=dict(
@@ -142,7 +144,11 @@ test_cfg = dict(
         score_thr=0.05,
         nms=dict(type='nms', iou_thr=0.5),
         max_per_img=100,
-        mask_thr_binary=0.5))
+        mask_thr_binary=0.5),
+    proto=dict(
+        mask_thr=0.5,
+        using_clamp=False
+    ))
 # dataset settings
 dataset_type = 'CocoDataset'
 data_root = 'data/coco/'
