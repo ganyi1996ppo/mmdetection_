@@ -154,5 +154,5 @@ class MaxIoUAssigner_coeff(BaseAssigner):
         # return AssignResult(
         #     num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)
         return AssignResult(
-            num_gts, assigned_gt_inds, gt_argmax_overlaps, labels=assigned_labels
+            num_gts, assigned_gt_inds, [gt_argmax_overlaps, argmax_overlaps], labels=assigned_labels
         )

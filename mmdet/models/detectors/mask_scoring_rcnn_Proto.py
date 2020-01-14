@@ -28,12 +28,14 @@ class ProtoRCNN(TwoStageDetector):
                  semantic_roi_extractor=None,
                  mask_relation_head=None,
                  rpn_proto=False,
+                 proto_mask_training=True,
                  proto_combine = 'sum',
                  neck=None,
                  shared_head=None,
                  pretrained=None):
 
         self.rpn_proto = rpn_proto
+        self.proto_mask = proto_mask_training
         self.proto_combine = proto_combine
         super(ProtoRCNN, self).__init__(
             backbone=backbone,
@@ -89,10 +91,9 @@ class ProtoRCNN(TwoStageDetector):
         x = self.extract_feat(img)
 
         losses = dict()
-        fg_masks = [gt_mask[-1] for gt_mask in gt_masks]
         semantic_pred= self.semantic_head(x)
-        loss_seg = self.semantic_head.loss(semantic_pred, fg_masks)
-        losses['loss_mask_seg'] = loss_seg
+        # loss_seg = self.semantic_head.loss(semantic_pred, fg_masks)
+        # losses['loss_mask_seg'] = loss_seg
         if self.augneck:
             x = self.fuse_neck(x)
 
@@ -157,8 +158,16 @@ class ProtoRCNN(TwoStageDetector):
                 seg_feats = self.semantic_roi_extractor([semantic_pred], rois)
                 if self.proto_combine == 'sum':
                     seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
+                    if self.proto_mask:
+                        proto_targets = self.semantic_head.get_target(sampling_results, gt_masks, self.train_cfg.proto)
+                        loss_proto = self.semantic_head.loss(seg_feats, proto_targets)
+                        losses.update(loss_proto)
+                        seg_feats = seg_feats.detach()
+
                 elif self.proto_combine == 'con':
                     seg_feats = seg_feats * coeffs[:,:,None,None]
+                    if self.proto_mask:
+                        raise NotImplementedError
 
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:,None,:,:]

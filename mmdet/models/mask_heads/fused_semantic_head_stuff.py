@@ -6,7 +6,7 @@ import mmcv
 import numpy as np
 import torch
 
-from mmdet.core import auto_fp16, force_fp32
+from mmdet.core import auto_fp16, force_fp32, mask_target
 from ..registry import HEADS
 from ..utils import ConvModule
 
@@ -32,7 +32,7 @@ class FusedMaskHead(nn.Module):
                  num_convs=4,
                  in_channels=256,
                  conv_out_channels=256,
-                 num_classes=1,
+                 proto_out=32,
                  ignore_label=255,
                  conv_cfg=None,
                  norm_cfg=None,
@@ -45,7 +45,7 @@ class FusedMaskHead(nn.Module):
         self.num_convs = num_convs
         self.in_channels = in_channels
         self.conv_out_channels = conv_out_channels
-        self.num_classes = num_classes
+        self.proto_out = proto_out
         self.ignore_label = ignore_label
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
@@ -80,12 +80,21 @@ class FusedMaskHead(nn.Module):
         #     1,
         #     conv_cfg=self.conv_cfg,
         #     norm_cfg=self.norm_cfg)
-        self.conv_logits = nn.Conv2d(conv_out_channels, self.num_classes, 1)
+        self.conv_logits = nn.Conv2d(conv_out_channels, self.proto_out, 1)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=ignore_label)
 
+
     def init_weights(self):
         kaiming_init(self.conv_logits)
+
+    def get_target(self, sampling_results, gt_masks, proto_cfg):
+        proposals = [res.bboxes for res in sampling_results]
+        assgined_gt_inds = [
+            res.inds for res in sampling_results
+        ]
+        all_target = mask_target(proposals, assgined_gt_inds, gt_masks, proto_cfg)
+        return all_target
 
     @auto_fp16()
     def forward(self, feats):
@@ -107,9 +116,11 @@ class FusedMaskHead(nn.Module):
     @force_fp32(apply_to=('mask_pred', ))
     def loss(self, mask_pred, labels):
         # labels = labels.squeeze(1).long()
-        H,W = mask_pred.size()[-2:]
-        labels = [mmcv.imresize(label, (W,H), interpolation='nearest') for label in labels]
-        labels = np.stack(labels)
-        labels = torch.from_numpy(labels).to(mask_pred.device).float()
+        # H,W = mask_pred.size()[-2:]
+        # labels = [mmcv.imresize(label, (W,H), interpolation='nearest') for label in labels]
+        # labels = np.stack(labels)
+        # labels = torch.from_numpy(labels).to(mask_pred.device).float()
+        losses = dict()
         loss_mask = self.loss_mask(mask_pred, labels, torch.zeros(mask_pred.size(0)).long())
-        return loss_mask
+        losses['proto_mask'] = loss_mask
+        return losses
