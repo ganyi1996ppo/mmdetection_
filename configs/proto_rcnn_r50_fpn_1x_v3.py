@@ -130,7 +130,7 @@ train_cfg = dict(
     proto=dict(
         mask_size=7,
         mask_thr=0.5,
-        using_clamp=False
+        using_clamp=True
     ))
 test_cfg = dict(
     rpn=dict(
@@ -147,7 +147,7 @@ test_cfg = dict(
         mask_thr_binary=0.5),
     proto=dict(
         mask_thr=0.5,
-        using_clamp=False
+        using_clamp=True
     ))
 # dataset settings
 dataset_type = 'CocoDataset'
