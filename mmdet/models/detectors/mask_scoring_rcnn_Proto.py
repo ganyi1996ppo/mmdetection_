@@ -159,6 +159,7 @@ class ProtoRCNN(TwoStageDetector):
                 if self.proto_combine == 'sum':
                     seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
                     if self.proto_mask:
+                        seg_feats = seg_feats.clamp(0, 1)
                         proto_targets = self.semantic_head.get_target(sampling_results, gt_masks, self.train_cfg.proto)
                         loss_proto = self.semantic_head.loss(seg_feats, proto_targets)
                         losses.update(loss_proto)
@@ -295,6 +296,7 @@ class ProtoRCNN(TwoStageDetector):
                 proto_rois = self.semantic_roi_extractor([semantic_pred], rois)
                 if self.proto_combine == 'sum':
                     proto_rois = (proto_rois*params[:,:,None,None]).sum(dim=1, keepdim=True)
+                    proto_rois = proto_rois.clamp(0,1)
                 elif self.proto_combine == 'con':
                     proto_rois = (proto_rois*params[:,:,None,None])
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
