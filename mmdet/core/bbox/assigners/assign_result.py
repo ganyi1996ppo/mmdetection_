@@ -9,7 +9,7 @@ class AssignResult(object):
         if len(max_overlaps) == 2:
             self.max_overlaps, self.anchor_overlaps= max_overlaps
         else:
-            self.max_overlaps = None
+            self.max_overlaps = max_overlaps
             self.anchor_overlaps = max_overlaps
         self.labels = labels
 

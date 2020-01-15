@@ -10,9 +10,10 @@ from .maskiou_head_MH import MaskIoUHead_MH
 from .fcn_mask_head_MH import FCNMaskHead_MH
 from .relation_head import RelationHead
 from .fused_semantic_head_stuff import FusedMaskHead
+from.fused_atrous_semantic_head import FusedASemanticHead
 
 __all__ = [
     'FCNMaskHead', 'HTCMaskHead', 'FusedSemanticHead', 'GridHead',
     'MaskIoUHead', 'FCNMaskHead_back', 'FCNMaskHead_CA', 'MaskIoUHead_CA',
-    'MaskIoUHead_MH', 'FCNMaskHead_MH', 'RelationHead', 'FusedMaskHead'
+    'MaskIoUHead_MH', 'FCNMaskHead_MH', 'RelationHead', 'FusedMaskHead', 'FusedASemanticHead'
 ]
