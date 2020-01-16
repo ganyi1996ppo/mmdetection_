@@ -28,7 +28,7 @@ class ProtoRCNN(TwoStageDetector):
                  semantic_roi_extractor=None,
                  mask_relation_head=None,
                  rpn_proto=False,
-                 proto_mask_training=True,
+                 proto_mask_training=False,
                  proto_combine = 'sum',
                  neck=None,
                  shared_head=None,
@@ -91,9 +91,10 @@ class ProtoRCNN(TwoStageDetector):
         x = self.extract_feat(img)
 
         losses = dict()
-        semantic_pred= self.semantic_head(x)
-        # loss_seg = self.semantic_head.loss(semantic_pred, fg_masks)
-        # losses['loss_mask_seg'] = loss_seg
+        semantic_pred = self.semantic_head(x)
+        loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
+        semantic_pred = semantic_pred.detach()
+        losses['loss_mask_seg'] = loss_seg
         if self.augneck:
             x = self.fuse_neck(x)
 
@@ -155,7 +156,14 @@ class ProtoRCNN(TwoStageDetector):
             if self.semantic_extract:
                     # and self.relation_head:
                 # relations = self.mask_relation_head(semantic_pred)
-                seg_feats = self.semantic_roi_extractor([semantic_pred], rois)
+                seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
+                N,C,H,W = seg_feats.size()
+                seg_inds = torch.cat([torch.arange(1,12), torch.arange(13,26), torch.arange(27,29), torch.arange(31,45),
+                            torch.arange(46, 66), torch.arange(67,68), torch.arange(70,71),
+                            torch.arange(72,83), torch.arange(84, 91)])
+                seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
+                seg_feats = (seg_feats[:,seg_inds, :,:] * seg_value).contiguous()
+                seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 if self.proto_combine == 'sum':
                     seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
                     if self.proto_mask:
@@ -167,6 +175,7 @@ class ProtoRCNN(TwoStageDetector):
                         loss_proto = self.semantic_head.loss(seg_feats, proto_targets)
                         losses.update(loss_proto)
                         seg_feats = seg_feats.detach()
+
 
                 elif self.proto_combine == 'con':
                     seg_feats = seg_feats * coeffs[:,:,None,None]
@@ -295,16 +304,25 @@ class ProtoRCNN(TwoStageDetector):
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
                 params = torch.cat(params,0)
+                seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
+                N, C, H, W = seg_feats.size()
+                seg_inds = torch.cat(
+                    [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+                     torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+                     torch.arange(72, 83), torch.arange(84, 91)])
+                seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
+                seg_feats = (seg_feats[:, seg_inds, :, :] * seg_value).contiguous()
+                seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 # relation_feats = self.mask_relation_head(semantic_pred)
-                proto_rois = self.semantic_roi_extractor([semantic_pred], rois)
                 if self.proto_combine == 'sum':
-                    proto_rois = (proto_rois*params[:,:,None,None]).sum(dim=1, keepdim=True)
-                    if self.test_cfg.proto.using_clamp:
-                        proto_rois = proto_rois.clamp(0,1)
-                    else:
-                        proto_rois = (proto_rois>self.train_cfg.proto.mask_thr).float()
+                    proto_rois = (seg_feats*params[:,:,None,None]).sum(dim=1, keepdim=True)
+                    if self.proto_mask:
+                        if self.test_cfg.proto.using_clamp:
+                            proto_rois = proto_rois.clamp(0,1)
+                        else:
+                            proto_rois = (proto_rois>self.train_cfg.proto.mask_thr).float()
                 elif self.proto_combine == 'con':
-                    proto_rois = (proto_rois*params[:,:,None,None])
+                    proto_rois = (seg_feats*params[:,:,None,None])
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:, None, :, :]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),

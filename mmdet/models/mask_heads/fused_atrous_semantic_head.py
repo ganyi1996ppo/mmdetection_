@@ -69,12 +69,12 @@ class FusedASemanticHead(nn.Module):
                     padding=2,
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg))
-        self.conv_embedding = ConvModule(
-            conv_out_channels,
-            conv_out_channels,
-            1,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg)
+        # self.conv_embedding = ConvModule(
+        #     conv_out_channels,
+        #     conv_out_channels,
+        #     1,
+        #     conv_cfg=self.conv_cfg,
+        #     norm_cfg=self.norm_cfg)
         self.conv_logits = nn.Conv2d(conv_out_channels, self.num_classes, 1)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=ignore_label)
@@ -96,8 +96,7 @@ class FusedASemanticHead(nn.Module):
             x = self.convs[i](x)
 
         mask_pred = self.conv_logits(x)
-        x = self.conv_embedding(x)
-        return mask_pred, x
+        return mask_pred
 
     @force_fp32(apply_to=('mask_pred', ))
     def loss(self, mask_pred, labels):

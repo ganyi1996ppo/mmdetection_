@@ -33,6 +33,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  with_IoU = False,
                  conv_out_channels=256,
                  fc_out_channels=1024,
+                 proto_combine='con',
                  # mask_conv=3,
                  conv_cfg=None,
                  norm_cfg=None,
@@ -65,11 +66,12 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.using_refine = using_refine
         self.with_IoU = with_IoU
         self.mask_channels = mask_channels
+        self.proto_combine = proto_combine
         if with_IoU:
             self.iou_loss = build_loss(loss_iou)
 
         # add shared convs and fcs
-        combine_channels = self.in_channels + self.mask_channels
+        combine_channels = self.in_channels + self.mask_channels if proto_combine == 'con' else self.in_channels
         self.combine = ConvModule(combine_channels, conv_out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         # self.mask_conv = nn.ModuleList()
         # for i in range(mask_conv):
@@ -244,7 +246,10 @@ class ConvFCBBoxHead_MH(BBoxHead):
         if self.using_mask:
             # for conv in self.mask_conv:
             #     mask_pred = conv(mask_pred)
-            x = torch.cat([x, mask_pred], dim=1)
+            if self.proto_combine == 'con':
+                x = torch.cat([x, mask_pred], dim=1)
+            else:
+                x = x + mask_pred
         x = self.combine(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
