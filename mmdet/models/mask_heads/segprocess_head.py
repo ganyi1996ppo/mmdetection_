@@ -24,7 +24,7 @@ class SemanticProcessHead(nn.Module):
         self.norm_cfg = norm_cfg
         self.fp16_enabled = False
 
-        self.lateral_conv = ConvModule(self.in_channels,self.conv_out_channels, 3, stride=2,
+        self.lateral_conv = ConvModule(self.in_channels,self.conv_out_channels, 3, stride=2,padding=1,
                                        groups=self.in_channels, conv_cfg=self.conv_cfg,
                                        norm_cfg=self.norm_cfg)
 
