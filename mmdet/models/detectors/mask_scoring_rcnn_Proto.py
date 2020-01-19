@@ -30,6 +30,7 @@ class ProtoRCNN(TwoStageDetector):
                  rpn_proto=False,
                  proto_mask_training=False,
                  proto_combine = 'sum',
+                 detach_seg = False,
                  neck=None,
                  shared_head=None,
                  pretrained=None):
@@ -37,6 +38,7 @@ class ProtoRCNN(TwoStageDetector):
         self.rpn_proto = rpn_proto
         self.proto_mask = proto_mask_training
         self.proto_combine = proto_combine
+        self.detach_seg = detach_seg
         super(ProtoRCNN, self).__init__(
             backbone=backbone,
             neck=neck,
@@ -93,7 +95,8 @@ class ProtoRCNN(TwoStageDetector):
         losses = dict()
         semantic_pred = self.semantic_head(x)
         loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
-        semantic_pred = semantic_pred.detach()
+        if self.detach_seg:
+            semantic_pred = semantic_pred.detach()
         losses['loss_mask_seg'] = loss_seg
         if self.augneck:
             x = self.fuse_neck(x)
