@@ -25,6 +25,7 @@ class ProtoRCNN(TwoStageDetector):
                  test_cfg,
                  semantic_head,
                  fuse_neck=None,
+                 segproc_head=None,
                  semantic_roi_extractor=None,
                  mask_relation_head=None,
                  rpn_proto=False,
@@ -57,6 +58,10 @@ class ProtoRCNN(TwoStageDetector):
 
         self.augneck = False
         self.relation_head=False
+        self.seg_proc = False
+        if segproc_head:
+            self.seg_proc=True
+            self.segproc_head = builder.build_head(segproc_head)
         if mask_relation_head:
             self.relation_head = True
             self.mask_relation_head = builder.build_head(mask_relation_head)
@@ -166,6 +171,8 @@ class ProtoRCNN(TwoStageDetector):
                             torch.arange(72,83), torch.arange(84, 91)])
                 seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
                 seg_feats = (seg_feats[:,seg_inds, :,:] * seg_value).contiguous()
+                if self.seg_proc:
+                    seg_feats = self.segproc_head(seg_feats)
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 if self.proto_combine == 'sum':
                     seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
@@ -315,6 +322,8 @@ class ProtoRCNN(TwoStageDetector):
                      torch.arange(72, 83), torch.arange(84, 91)])
                 seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
                 seg_feats = (seg_feats[:, seg_inds, :, :] * seg_value).contiguous()
+                if self.seg_proc:
+                    seg_feats = self.segproc_head(seg_feats)
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 # relation_feats = self.mask_relation_head(semantic_pred)
                 if self.proto_combine == 'sum':
