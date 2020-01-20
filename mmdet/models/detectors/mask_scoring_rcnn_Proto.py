@@ -26,6 +26,7 @@ class ProtoRCNN(TwoStageDetector):
                  semantic_head,
                  fuse_neck=None,
                  segproc_head=None,
+                 proto=True,
                  semantic_roi_extractor=None,
                  mask_relation_head=None,
                  rpn_proto=False,
@@ -40,6 +41,7 @@ class ProtoRCNN(TwoStageDetector):
         self.proto_mask = proto_mask_training
         self.proto_combine = proto_combine
         self.detach_seg = detach_seg
+        self.proto = proto
         super(ProtoRCNN, self).__init__(
             backbone=backbone,
             neck=neck,
@@ -175,7 +177,10 @@ class ProtoRCNN(TwoStageDetector):
                     seg_feats = self.segproc_head(seg_feats)
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 if self.proto_combine == 'sum':
-                    seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
+                    if self.proto:
+                        seg_feats = (seg_feats * coeffs[:,:,None,None]).sum(dim=1,keepdim=True)
+                    else:
+                        seg_feats =seg_feats.sum(dim=1, keepdim=True)
                     if self.proto_mask:
                         if self.train_cfg.proto.using_clamp:
                             seg_feats = seg_feats.clamp(0,1)
@@ -188,7 +193,8 @@ class ProtoRCNN(TwoStageDetector):
 
 
                 elif self.proto_combine == 'con':
-                    seg_feats = seg_feats * coeffs[:,:,None,None]
+                    if self.proto:
+                        seg_feats = seg_feats * coeffs[:,:,None,None]
                     if self.proto_mask:
                         raise NotImplementedError
 
@@ -327,14 +333,20 @@ class ProtoRCNN(TwoStageDetector):
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
                 # relation_feats = self.mask_relation_head(semantic_pred)
                 if self.proto_combine == 'sum':
-                    proto_rois = (seg_feats*params[:,:,None,None]).sum(dim=1, keepdim=True)
+                    if self.proto:
+                        proto_rois = (seg_feats*params[:,:,None,None]).sum(dim=1, keepdim=True)
+                    else:
+                        proto_rois = seg_feats.sum(dim=1, keepdim=True)
                     if self.proto_mask:
                         if self.test_cfg.proto.using_clamp:
                             proto_rois = proto_rois.clamp(0,1)
                         else:
                             proto_rois = (proto_rois>self.train_cfg.proto.mask_thr).float()
                 elif self.proto_combine == 'con':
-                    proto_rois = (seg_feats*params[:,:,None,None])
+                    if self.proto:
+                        proto_rois = (seg_feats*params[:,:,None,None])
+                    else:
+                        proto_rois = seg_feats
                 # _, sem_feats = torch.max(semantic_pred, dim=1)
                 # sem_feats = sem_feats[:, None, :, :]
                 # sem_feats = torch.zeros(sem_feats.size(0), 183, sem_feats.size(2),
