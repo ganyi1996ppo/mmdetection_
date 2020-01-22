@@ -34,6 +34,7 @@ class ConvFCBBoxHead_MH(BBoxHead):
                  conv_out_channels=256,
                  fc_out_channels=1024,
                  proto_combine='con',
+                 feature_reduce=False,
                  # mask_conv=3,
                  conv_cfg=None,
                  norm_cfg=None,
@@ -67,14 +68,20 @@ class ConvFCBBoxHead_MH(BBoxHead):
         self.with_IoU = with_IoU
         self.mask_channels = mask_channels
         self.proto_combine = proto_combine
+        self.feature_reduce = feature_reduce
         if with_IoU:
             self.iou_loss = build_loss(loss_iou)
 
         # self.hint_conv = ConvModule(self.mask_channels, self.mask_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
 
         # add shared convs and fcs
-        combine_channels = self.in_channels + self.mask_channels if proto_combine == 'con' else self.in_channels
-        self.combine = ConvModule(combine_channels, conv_out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
+        if self.proto_combine == 'None':
+            if self.feature_reduce:
+                self.reduce_con = ConvModule(self.in_channels, conv_out_channels - mask_channels, 1, conv_cfg=conv_cfg,
+                                             norm_cfg=norm_cfg)
+        else:
+            combine_channels = self.in_channels + self.mask_channels if proto_combine == 'con' else self.in_channels
+            self.combine = ConvModule(combine_channels, conv_out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
         # self.mask_conv = nn.ModuleList()
         # for i in range(mask_conv):
         #     conv_m = ConvModule(1, 1, 3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg)
@@ -249,11 +256,16 @@ class ConvFCBBoxHead_MH(BBoxHead):
             # for conv in self.mask_conv:
             #     mask_pred = conv(mask_pred)
             # mask_pred = self.hint_conv(mask_pred)
+
             if self.proto_combine == 'con':
                 x = torch.cat([x, mask_pred], dim=1)
-            else:
+                x = self.combine(x)
+            elif self.proto_combine == 'sum':
                 x = x + mask_pred
-        x = self.combine(x)
+                x = self.combine(x)
+            else:
+                x = self.reduce_con(x)
+                x = torch.cat([x, mask_pred], dim=1)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
                 x = conv(x)

@@ -113,7 +113,10 @@ class ProtoRCNN(TwoStageDetector):
             if self.rpn_proto:
                 rpn_cls, rpn_bbox, rpn_proto = self.rpn_head([torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x])
             else:
-                rpn_cls, rpn_bbox, rpn_proto = self.rpn_head(x)
+                if self.proto:
+                    rpn_cls, rpn_bbox, rpn_proto = self.rpn_head(x)
+                else:
+                    rpn_cls, rpn_bbox = self.rpn_head(x)
             rpn_loss_inputs = (rpn_cls, rpn_bbox) + (gt_bboxes, img_meta,
                                           self.train_cfg.rpn)
             rpn_losses = self.rpn_head.loss(
@@ -122,8 +125,12 @@ class ProtoRCNN(TwoStageDetector):
 
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
-            proposal_inputs = (rpn_cls, rpn_bbox, rpn_proto) + (img_meta, proposal_cfg)
-            proposal_list, coeffs = self.rpn_head.get_bboxes(*proposal_inputs)
+            if self.proto:
+                proposal_inputs = (rpn_cls, rpn_bbox, rpn_proto) + (img_meta, proposal_cfg)
+                proposal_list, coeffs = self.rpn_head.get_bboxes(*proposal_inputs)
+            else:
+                proposal_inputs =(rpn_cls, rpn_bbox) + (img_meta, proposal_cfg)
+                proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
         else:
             proposal_list = proposals
 
@@ -142,7 +149,8 @@ class ProtoRCNN(TwoStageDetector):
                                                      gt_bboxes[i],
                                                      gt_bboxes_ignore[i],
                                                      gt_labels[i])
-                coeff = torch.cat([coeffs[i][assign_result.max_overlaps], coeffs[i]],dim=0)
+                if self.proto:
+                    coeff = torch.cat([coeffs[i][assign_result.max_overlaps], coeffs[i]],dim=0)
                 sampling_result = bbox_sampler.sample(
                     assign_result,
                     proposal_list[i],
@@ -150,13 +158,15 @@ class ProtoRCNN(TwoStageDetector):
                     gt_labels[i],
                     feats=[lvl_feat[i][None] for lvl_feat in x])
                 sampling_results.append(sampling_result)
-                coeff_results.append(coeff[torch.cat([sampling_result.pos_inds, sampling_result.neg_inds],dim=0)])
+                if self.proto:
+                    coeff_results.append(coeff[torch.cat([sampling_result.pos_inds, sampling_result.neg_inds],dim=0)])
                 # proto_coeffs.append(coeff_list[i][sampling_result.pos_inds])
 
         # bbox head forward and loss
         if self.with_bbox:
             rois = bbox2roi([res.bboxes for res in sampling_results])
-            coeffs = torch.cat(coeff_results, 0)
+            if self.proto:
+                coeffs = torch.cat(coeff_results, 0)
             # TODO: a more flexible way to decide which feature maps to use
             bbox_feats = self.bbox_roi_extractor(
                 x[:self.bbox_roi_extractor.num_inputs], rois)
@@ -314,12 +324,14 @@ class ProtoRCNN(TwoStageDetector):
                 [torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x], img_meta, self.test_cfg.rpn if proposals is None else proposals
             )
         else:
-            proposal_list, params = self.simple_test_rpn(
+            if self.proto:
+                proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
         if self.semantic_extract:
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
-                params = torch.cat(params,0)
+                if self.proto:
+                    params = torch.cat(params,0)
                 seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
                 N, C, H, W = seg_feats.size()
                 seg_inds = torch.cat(
