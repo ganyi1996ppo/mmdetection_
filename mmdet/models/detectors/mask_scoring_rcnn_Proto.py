@@ -311,7 +311,7 @@ class ProtoRCNN(TwoStageDetector):
             proposal_list, params = self.rpn_head.get_bboxes(*proposal_inputs)
             return proposal_list, params
         else:
-            proposal_list = self.rpn_head.get_bbox(*proposal_inputs)
+            proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
             return proposal_list, None
 
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
