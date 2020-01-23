@@ -324,9 +324,9 @@ class ProtoRCNN(TwoStageDetector):
                 [torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x], img_meta, self.test_cfg.rpn if proposals is None else proposals
             )
         else:
-            if self.proto:
-                proposal_list = self.simple_test_rpn(
+            proposal_list, params = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
+
         if self.semantic_extract:
             if self.semantic_extract:
                 rois = bbox2roi(proposal_list)
