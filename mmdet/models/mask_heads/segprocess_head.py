@@ -27,13 +27,13 @@ class SemanticProcessHead(nn.Module):
         self.groups = groups
 
         if self.groups:
-            self.lateral_conv = ConvModule(self.in_channels,self.conv_out_channels, 3, stride=2, padding=1,
+            self.lateral_conv = ConvModule(self.conv_out_channels,self.conv_out_channels, 3, stride=2, padding=1,
                                            groups = self.in_channels,
                                            conv_cfg=self.conv_cfg,
                                            norm_cfg=self.norm_cfg)
         else:
             self.lateral_conv = ConvModule(
-                self.in_channels, self.conv_out_channels, 3, stride=2, padding=1,
+                self.conv_out_channels, self.conv_out_channels, 3, stride=2, padding=1,
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg
             )
