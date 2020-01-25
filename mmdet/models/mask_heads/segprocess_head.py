@@ -27,24 +27,24 @@ class SemanticProcessHead(nn.Module):
         self.groups = groups
 
         if self.groups:
-            self.lateral_conv = ConvModule(self.conv_out_channels,self.conv_out_channels, 3, stride=2, padding=1,
+            self.lateral_conv = ConvModule(self.in_channels,self.conv_out_channels, 3, stride=2, padding=1,
                                            groups = self.in_channels,
                                            conv_cfg=self.conv_cfg,
                                            norm_cfg=self.norm_cfg)
         else:
             self.lateral_conv = ConvModule(
-                self.conv_out_channels, self.conv_out_channels, 3, stride=2, padding=1,
+                self.in_channels, self.conv_out_channels, 3, stride=2, padding=1,
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg
             )
 
         self.convs = nn.ModuleList()
         for i in range(self.num_convs):
-            in_channels = self.in_channels if i == 0 else conv_out_channels
+            # in_channels = self.in_channels if i == 0 else conv_out_channels
             if self.groups:
                 self.convs.append(
                     ConvModule(
-                        in_channels,
+                        conv_out_channels,
                         conv_out_channels,
                         3,
                         padding=1,
@@ -54,7 +54,7 @@ class SemanticProcessHead(nn.Module):
             else:
                 self.convs.append(
                     ConvModule(
-                        in_channels,
+                        conv_out_channels,
                         conv_out_channels,
                         3,
                         padding=1,
