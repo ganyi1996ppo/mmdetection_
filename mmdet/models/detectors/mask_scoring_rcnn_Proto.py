@@ -176,13 +176,15 @@ class ProtoRCNN(TwoStageDetector):
             if self.semantic_extract:
                     # and self.relation_head:
                 # relations = self.mask_relation_head(semantic_pred)
-                seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
-                N,C,H,W = seg_feats.size()
+                # seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
+                # N,C,H,W = seg_feats.size()
                 seg_inds = torch.cat([torch.arange(1,12), torch.arange(13,26), torch.arange(27,29), torch.arange(31,45),
                             torch.arange(46, 66), torch.arange(67,68), torch.arange(70,71),
                             torch.arange(72,83), torch.arange(84, 91)])
-                seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
-                seg_feats = (seg_feats[:,seg_inds, :,:] * seg_value).contiguous()
+                seg_feats = semantic_pred.softmax(dim=1)
+                seg_feats = seg_feats[:,seg_inds, :, :].contiguous()
+                # seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
+                # seg_feats = (seg_feats[:,seg_inds, :,:] * seg_value).contiguous()
                 if self.seg_proc:
                     seg_feats = self.segproc_head(seg_feats)
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
@@ -200,7 +202,6 @@ class ProtoRCNN(TwoStageDetector):
                         loss_proto = self.semantic_head.loss(seg_feats, proto_targets)
                         losses.update(loss_proto)
                         seg_feats = seg_feats.detach()
-
 
                 elif self.proto_combine == 'con':
                     if self.proto:
@@ -336,14 +337,16 @@ class ProtoRCNN(TwoStageDetector):
                 rois = bbox2roi(proposal_list)
                 if self.proto:
                     params = torch.cat(params,0)
-                seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
-                N, C, H, W = seg_feats.size()
+                # seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
+                semantic_pred = semantic_pred.softmax(dim=1)
+                # N, C, H, W = seg_feats.size()
                 seg_inds = torch.cat(
                     [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
                      torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
                      torch.arange(72, 83), torch.arange(84, 91)])
-                seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
-                seg_feats = (seg_feats[:, seg_inds, :, :] * seg_value).contiguous()
+                seg_feats = semantic_pred[:,seg_inds, :, :].contiguous()
+                # seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
+                # seg_feats = (seg_feats[:, seg_inds, :, :] * seg_value).contiguous()
                 if self.seg_proc:
                     seg_feats = self.segproc_head(seg_feats)
                 seg_feats = self.semantic_roi_extractor([seg_feats], rois)
