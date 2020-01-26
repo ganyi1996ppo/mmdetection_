@@ -61,6 +61,7 @@ class ProtoRCNN(TwoStageDetector):
         self.augneck = False
         self.relation_head=False
         self.seg_proc = False
+        self.semantic_extract=False
         if segproc_head:
             self.seg_proc=True
             self.segproc_head = builder.build_head(segproc_head)
@@ -105,8 +106,13 @@ class ProtoRCNN(TwoStageDetector):
         if self.detach_seg:
             semantic_pred = semantic_pred.detach()
         losses['loss_mask_seg'] = loss_seg
+        seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+                              torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+                              torch.arange(72, 83), torch.arange(84, 91)])
+        seg_feats = semantic_pred.softmax(dim=1)
+        seg_feats = seg_feats[:, seg_inds, :, :].contiguous()
         if self.augneck:
-            x = self.fuse_neck(x)
+            x = self.fuse_neck(x, seg_feats)
 
         # RPN forward and loss
         if self.with_rpn:
@@ -178,11 +184,7 @@ class ProtoRCNN(TwoStageDetector):
                 # relations = self.mask_relation_head(semantic_pred)
                 # seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
                 # N,C,H,W = seg_feats.size()
-                seg_inds = torch.cat([torch.arange(1,12), torch.arange(13,26), torch.arange(27,29), torch.arange(31,45),
-                            torch.arange(46, 66), torch.arange(67,68), torch.arange(70,71),
-                            torch.arange(72,83), torch.arange(84, 91)])
-                seg_feats = semantic_pred.softmax(dim=1)
-                seg_feats = seg_feats[:,seg_inds, :, :].contiguous()
+
                 # seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
                 # seg_feats = (seg_feats[:,seg_inds, :,:] * seg_value).contiguous()
                 if self.seg_proc:
@@ -322,8 +324,15 @@ class ProtoRCNN(TwoStageDetector):
         x = self.extract_feat(img)
 
         semantic_pred = self.semantic_head(x)
+        semantic_pred = semantic_pred.softmax(dim=1)
+        # N, C, H, W = seg_feats.size()
+        seg_inds = torch.cat(
+            [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+             torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+             torch.arange(72, 83), torch.arange(84, 91)])
+        seg_feats = semantic_pred[:, seg_inds, :, :].contiguous()
         if self.augneck:
-            x = self.fuse_neck(x)
+            x = self.fuse_neck(x, seg_feats)
         if self.rpn_proto:
             proposal_list, params = self.simple_test_rpn(
                 [torch.cat([feat, F.interpolate(semantic_pred, feat.size()[-2:])], 1) for feat in x], img_meta, self.test_cfg.rpn if proposals is None else proposals
@@ -338,13 +347,7 @@ class ProtoRCNN(TwoStageDetector):
                 if self.proto:
                     params = torch.cat(params,0)
                 # seg_value, seg_feats = torch.max(semantic_pred, dim=1, keepdim=True)
-                semantic_pred = semantic_pred.softmax(dim=1)
-                # N, C, H, W = seg_feats.size()
-                seg_inds = torch.cat(
-                    [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
-                     torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
-                     torch.arange(72, 83), torch.arange(84, 91)])
-                seg_feats = semantic_pred[:,seg_inds, :, :].contiguous()
+
                 # seg_feats = torch.zeros(N, 183, H, W).to(seg_feats.device).scatter_(1, seg_feats, 1)
                 # seg_feats = (seg_feats[:, seg_inds, :, :] * seg_value).contiguous()
                 if self.seg_proc:
