@@ -79,7 +79,7 @@ class SemanticPyramidNeck(nn.Module):
         #     conv_cfg=self.conv_cfg,
         #     norm_cfg=self.norm_cfg)
         # self.conv_logits = nn.Conv2d(conv_out_channels, self.num_classes, 1)
-            self.combine_convs.append(ConvModule(self.mask_channels+self.feature_channels,
+            self.combine_convs.append(ConvModule(self.proto_out+self.feature_channels,
                                            self.conv_out_channels,
                                            1,
                                            norm_cfg=norm_cfg,
