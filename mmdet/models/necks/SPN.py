@@ -15,6 +15,7 @@ class SemanticPyramidNeck(nn.Module):
                  feature_channels=256,
                  mask_channels=80,
                  num_levels = 5,
+                 proto_out=8,
                  conv_out_channels=256,
                  groups=True,
                  conv_cfg=None,
@@ -26,11 +27,13 @@ class SemanticPyramidNeck(nn.Module):
         self.feature_channels = feature_channels
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        self.proto_out = proto_out
         self.fp16_enabled = False
         self.groups = groups
 
         self.lateral_convs = nn.ModuleList()
         self.combine_convs = nn.ModuleList()
+        self.proto_convs = nn.ModuleList()
         for i in range(num_levels):
             feats_stride = 1 if i==0 else 2
             if self.groups:
@@ -45,6 +48,7 @@ class SemanticPyramidNeck(nn.Module):
                     norm_cfg=self.norm_cfg
                 ))
 
+            self.proto_convs.append(ConvModule(self.mask_channels, self.proto_out, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg))
         # self.convs = nn.ModuleList()
         # for i in range(self.num_convs):
         #     # in_channels = self.in_channels if i == 0 else conv_out_channels
@@ -91,7 +95,8 @@ class SemanticPyramidNeck(nn.Module):
         feats = list(feats)
         for i in range(self.num_levels):
             masks = self.lateral_convs[i](masks)
-            feats[i] = self.combine_convs[i](torch.cat([feats[i], masks], dim=1))
+            protos = self.proto_convs[i](masks)
+            feats[i] = self.combine_convs[i](torch.cat([feats[i], protos], dim=1))
         return tuple(feats)
 
         # combine_feature = sum(features) / len(features)
