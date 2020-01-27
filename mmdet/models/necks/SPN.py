@@ -88,10 +88,11 @@ class SemanticPyramidNeck(nn.Module):
     def forward(self, feats, masks):
         assert len(feats) == self.num_levels
         masks = F.interpolate(masks, feats[0].size()[-2:])
+        feats = list(feats)
         for i in range(self.num_levels):
             masks = self.lateral_convs[i](masks)
             feats[i] = self.combine_convs[i](torch.cat([feats[i], masks], dim=1))
-        return feats
+        return tuple(feats)
 
         # combine_feature = sum(features) / len(features)
         #         # masks = self.lateral_conv(masks)
