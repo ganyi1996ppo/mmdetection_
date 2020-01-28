@@ -79,11 +79,27 @@ class SemanticPyramidNeck(nn.Module):
         #     conv_cfg=self.conv_cfg,
         #     norm_cfg=self.norm_cfg)
         # self.conv_logits = nn.Conv2d(conv_out_channels, self.num_classes, 1)
-            self.combine_convs.append(ConvModule(self.proto_out+self.feature_channels,
-                                           self.conv_out_channels,
-                                           1,
-                                           norm_cfg=norm_cfg,
-                                           conv_cfg=conv_cfg))
+            self.combine_convs.append(
+                nn.Sequential(
+                ConvModule(self.mask_channels+self.feature_channels,
+                           self.conv_out_channels,
+                           3,
+                           padding=1,
+                           norm_cfg=norm_cfg,
+                           conv_cfg=conv_cfg),
+                ConvModule(self.conv_out_channels,
+                           self.conv_out_channels,
+                           3,
+                           padding=1,
+                           norm_cfg=norm_cfg,
+                           conv_cfg=conv_cfg),
+                ConvModule(self.conv_out_channels,
+                           self.conv_out_channels,
+                           3,
+                           padding=1,
+                           norm_cfg=norm_cfg,
+                           conv_cfg=conv_cfg)))
+
 
     def init_weights(self):
         pass
@@ -94,9 +110,9 @@ class SemanticPyramidNeck(nn.Module):
         masks = F.interpolate(masks, feats[0].size()[-2:])
         feats = list(feats)
         for i in range(self.num_levels):
-            masks = self.lateral_convs[i](masks)
-            protos = self.proto_convs[i](masks)
-            feats[i] = self.combine_convs[i](torch.cat([feats[i], protos], dim=1))
+            masks = F.interpolate(masks, feats[i].size()[-2:])
+            # protos = self.proto_convs[i](masks)
+            feats[i] = self.combine_convs[i](torch.cat([feats[i], masks], dim=1))
         return tuple(feats)
 
         # combine_feature = sum(features) / len(features)
