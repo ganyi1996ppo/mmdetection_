@@ -31,24 +31,24 @@ class SemanticPyramidNeck(nn.Module):
         self.fp16_enabled = False
         self.groups = groups
 
-        self.lateral_convs = nn.ModuleList()
+        # self.lateral_convs = nn.ModuleList()
         self.combine_convs = nn.ModuleList()
-        self.proto_convs = nn.ModuleList()
+        # self.proto_convs = nn.ModuleList()
         for i in range(num_levels):
-            feats_stride = 1 if i==0 else 2
-            if self.groups:
-                self.lateral_convs.append(ConvModule(self.mask_channels,self.mask_channels, 3, stride=feats_stride, padding=1,
-                                               groups = self.mask_channels,
-                                               conv_cfg=self.conv_cfg,
-                                               norm_cfg=self.norm_cfg))
-            else:
-                self.lateral_convs.append(ConvModule(
-                    self.mask_channels, self.mask_channels, 3, stride=feats_stride, padding=1,
-                    conv_cfg=self.conv_cfg,
-                    norm_cfg=self.norm_cfg
-                ))
+            # feats_stride = 1 if i==0 else 2
+            # if self.groups:
+            #     self.lateral_convs.append(ConvModule(self.mask_channels,self.mask_channels, 3, stride=feats_stride, padding=1,
+            #                                    groups = self.mask_channels,
+            #                                    conv_cfg=self.conv_cfg,
+            #                                    norm_cfg=self.norm_cfg))
+            # else:
+            #     self.lateral_convs.append(ConvModule(
+            #         self.mask_channels, self.mask_channels, 3, stride=feats_stride, padding=1,
+            #         conv_cfg=self.conv_cfg,
+            #         norm_cfg=self.norm_cfg
+            #     ))
 
-            self.proto_convs.append(ConvModule(self.mask_channels, self.proto_out, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg))
+            # self.proto_convs.append(ConvModule(self.mask_channels, self.proto_out, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg))
         # self.convs = nn.ModuleList()
         # for i in range(self.num_convs):
         #     # in_channels = self.in_channels if i == 0 else conv_out_channels
