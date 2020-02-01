@@ -33,6 +33,7 @@ class ProtoRCNN(TwoStageDetector):
                  proto_mask_training=False,
                  proto_combine = 'sum',
                  detach_seg = False,
+                 bg_seg=False,
                  neck=None,
                  shared_head=None,
                  pretrained=None):
@@ -59,6 +60,7 @@ class ProtoRCNN(TwoStageDetector):
         self.semantic_roi_extractor=False
 
         self.augneck = False
+        self.bg_seg = bg_seg
         self.relation_head=False
         self.seg_proc = False
         self.semantic_extract=False
@@ -109,6 +111,8 @@ class ProtoRCNN(TwoStageDetector):
         seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
                               torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
                               torch.arange(72, 83), torch.arange(84, 91)])
+        if self.bg_seg:
+            seg_inds = torch.cat([seg_inds, torch.arange(92,183)])
         seg_feats = semantic_pred.softmax(dim=1)
         seg_feats = seg_feats[:, seg_inds, :, :].contiguous()
         if self.augneck:
@@ -330,6 +334,8 @@ class ProtoRCNN(TwoStageDetector):
             [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
              torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
              torch.arange(72, 83), torch.arange(84, 91)])
+        if self.bg_seg:
+            seg_inds =torch.cat([seg_inds, torch.arange(92, 183)])
         seg_feats = semantic_pred[:, seg_inds, :, :].contiguous()
         if self.augneck:
             x = self.fuse_neck(x, seg_feats)
