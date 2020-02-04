@@ -6,6 +6,7 @@ from .FPXN import FPXN
 from .fuseFPN import FuseFPN
 from .segprocess_head_neck import SemanticProcessNeck
 from .SPN import SemanticPyramidNeck
+from .NSPN import NSemanticPyramidNeck
 
 __all__ = ['FPN', 'BFP', 'HRFPN', 'PAFPN', 'FPXN', 'FuseFPN',
-           'SemanticProcessNeck', 'SemanticPyramidNeck']
+           'SemanticProcessNeck', 'SemanticPyramidNeck', 'NSemanticPyramidNeck']
