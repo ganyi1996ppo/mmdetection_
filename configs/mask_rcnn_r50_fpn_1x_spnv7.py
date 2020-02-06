@@ -18,7 +18,7 @@ model = dict(
         dict(
         type='NSemanticPyramidNeck',
         num_convs=3,
-        num_level=5,
+        num_levels=5,
         conv_out_channels=256,)
         ],
     rpn_head=dict(
