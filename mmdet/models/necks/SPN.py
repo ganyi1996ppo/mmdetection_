@@ -164,7 +164,9 @@ class SemanticPyramidNeck(nn.Module):
                     raise NotImplementedError
                 # protos = self.proto_convs[i](masks)
             feats[i] = self.combine_convs[i](torch.cat([feats[i], masks], dim=1)) + feats[i]
+            # feats[i] = self.combine_convs[i](torch.cat([feats[i], masks], dim=1))
         return tuple(feats)
+
 
         # combine_feature = sum(features) / len(features)
         #         # masks = self.lateral_conv(masks)
