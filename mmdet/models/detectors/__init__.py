@@ -16,7 +16,7 @@ from .two_stage import TwoStageDetector
 from .mask_scoring_rcnn_ca import MaskScoringRCNN_CA
 from .mask_scoring_rcnn_MH import MaskHintRCNN
 from .mask_scoring_rcnn_SH import SHRCNN
-from .mask_scoring_rcnn_Proto import ProtoRCNN
+from .mask_scoring_rcnn_Protoo import ProtoRCNN
 
 __all__ = [
     'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
