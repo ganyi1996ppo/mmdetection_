@@ -1,7 +1,7 @@
 # model settings
 model = dict(
     type='ProtoRCNN',
-    pretrained='torchvision://resnet50',
+    pretrained='open-mmlab://resnet101_caffe',
     rpn_proto=False,
     proto_combine='con',
     proto = False,
@@ -9,11 +9,12 @@ model = dict(
     proto_mask_training=False,
     backbone=dict(
         type='ResNet',
-        depth=50,
+        depth=101,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        norm_cfg=dict(type='BN', requires_grad=False),
+        style='caffe'),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -28,7 +29,7 @@ model = dict(
         conv_out_channels=256,
         num_classes=183,
         ignore_label=255,
-        loss_weight=0.1),
+        loss_weight=0.2),
     fuse_neck=dict(
         type='SemanticPyramidNeck',
         groups=True,
@@ -162,7 +163,7 @@ test_cfg = dict(
 dataset_type = 'CocoDataset'
 data_root = 'data/coco/'
 img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True, with_seg=True),
@@ -232,7 +233,7 @@ evaluation = dict(interval=1)
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/spnv2_seg_mask_rcnn_r50_fpn_1x_seg'
+work_dir = './work_dirs/spnv2_seg_mask_rcnn_r101_fpn_1x_seg'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
