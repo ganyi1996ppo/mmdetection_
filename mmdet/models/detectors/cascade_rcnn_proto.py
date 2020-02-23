@@ -12,7 +12,7 @@ from .test_mixins import RPNTestMixin
 
 
 @DETECTORS.register_module
-class CascadeRCNN(BaseDetector, RPNTestMixin):
+class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
 
     def __init__(self,
                  num_stages,
@@ -21,6 +21,8 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
                  shared_head=None,
                  rpn_head=None,
                  bbox_roi_extractor=None,
+                 semantic_head=None,
+                 fuse_neck=None,
                  bbox_head=None,
                  mask_roi_extractor=None,
                  mask_head=None,
@@ -29,11 +31,15 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
                  pretrained=None):
         assert bbox_roi_extractor is not None
         assert bbox_head is not None
-        super(CascadeRCNN, self).__init__()
+        super(CascadeRCNN_Proto, self).__init__()
 
         self.num_stages = num_stages
         self.backbone = builder.build_backbone(backbone)
+        self.semantic_head = builder.build_head(semantic_head)
+        self.semantic_head.init_weights()
 
+        self.fuse_neck = builder.build_neck(fuse_neck)
+        self.fuse_neck.init_weights()
         if neck is not None:
             self.neck = builder.build_neck(neck)
 
@@ -90,7 +96,7 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
         return hasattr(self, 'rpn_head') and self.rpn_head is not None
 
     def init_weights(self, pretrained=None):
-        super(CascadeRCNN, self).init_weights(pretrained)
+        super(CascadeRCNN_Proto, self).init_weights(pretrained)
         self.backbone.init_weights(pretrained=pretrained)
         if self.with_neck:
             if isinstance(self.neck, nn.Sequential):
@@ -155,10 +161,24 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
                       gt_labels,
                       gt_bboxes_ignore=None,
                       gt_masks=None,
+                      gt_semantic_seg=None,
                       proposals=None):
         x = self.extract_feat(img)
 
         losses = dict()
+        semantic_pred = self.semantic_head(x)
+        loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
+        if self.detach_seg:
+            semantic_pred = semantic_pred.detach()
+        losses['loss_mask_seg'] = loss_seg
+        seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+                              torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+                              torch.arange(72, 83), torch.arange(84, 91)])
+        # if self.bg_seg:
+        #     seg_inds = torch.cat([seg_inds, torch.arange(92, 183)])
+        seg_feats = semantic_pred.softmax(dim=1)
+        seg_feats = seg_feats[:, seg_inds, :, :].contiguous()
+        x = self.fuse_neck(x, seg_feats)
 
         if self.with_rpn:
             rpn_outs = self.rpn_head(x)
@@ -269,7 +289,18 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
         return losses
 
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
+
         x = self.extract_feat(img)
+        semantic_pred = self.semantic_head(x)
+        semantic_pred = semantic_pred.softmax(dim=1)
+        # N, C, H, W = seg_feats.size()
+        seg_inds = torch.cat(
+            [torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+             torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+             torch.arange(72, 83), torch.arange(84, 91)])
+        seg_feats = semantic_pred[:, seg_inds, :, :].contiguous()
+        x = self.fuse_neck(x, seg_feats)
+
         proposal_list = self.simple_test_rpn(
             x, img_meta, self.test_cfg.rpn) if proposals is None else proposals
 
