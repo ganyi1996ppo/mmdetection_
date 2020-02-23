@@ -442,4 +442,4 @@ class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
         else:
             if isinstance(result, dict):
                 result = result['ensemble']
-        super(CascadeRCNN, self).show_result(data, result, **kwargs)
+        super(CascadeRCNN_Proto, self).show_result(data, result, **kwargs)
