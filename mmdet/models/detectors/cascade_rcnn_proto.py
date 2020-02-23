@@ -168,8 +168,6 @@ class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
         losses = dict()
         semantic_pred = self.semantic_head(x)
         loss_seg = self.semantic_head.loss(semantic_pred, gt_semantic_seg)
-        if self.detach_seg:
-            semantic_pred = semantic_pred.detach()
         losses['loss_mask_seg'] = loss_seg
         seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
                               torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
