@@ -18,10 +18,12 @@ from .mask_scoring_rcnn_MH import MaskHintRCNN
 from .mask_scoring_rcnn_SH import SHRCNN
 from .mask_scoring_rcnn_Protoo import ProtoRCNN
 from .cascade_rcnn_proto import CascadeRCNN_Proto
+from .single_stage_Proto import Retina_Proto
 
 __all__ = [
     'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
     'FastRCNN', 'FasterRCNN', 'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade',
     'DoubleHeadRCNN', 'RetinaNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN',
-    'RepPointsDetector',  'MaskHintRCNN', 'SHRCNN', 'ProtoRCNN', 'CascadeRCNN_Proto'
+    'RepPointsDetector',  'MaskHintRCNN', 'SHRCNN', 'ProtoRCNN', 'CascadeRCNN_Proto',
+    'Retina_Proto'
 ]
