@@ -1,19 +1,38 @@
 # model settings
 model = dict(
-    type='FasterRCNN',
-    pretrained='torchvision://resnet101',
+    type='ProtoRCNN',
+    pretrained='open-mmlab://resnet101_caffe',
     backbone=dict(
         type='ResNet',
         depth=101,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        norm_cfg=dict(type='BN', requires_grad=False),
+        style='caffe'),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
+semantic_head=dict(
+            type='FusedASemanticHead',
+            num_ins=5,
+            fusion_level=1,
+            num_convs=4,
+            in_channels=256,
+            conv_out_channels=256,
+            num_classes=183,
+            ignore_label=255,
+            loss_weight=0.2),
+    fuse_neck=dict(
+            type='SemanticPyramidNeck',
+            groups=True,
+            mask_channels=80,
+            proto_out=8,
+            conv_out_channels=256,
+            num_levels=5
+        ),
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
@@ -101,16 +120,17 @@ test_cfg = dict(
 dataset_type = 'CocoDataset'
 data_root = 'data/coco/'
 img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations', with_bbox=True,with_seg=True),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
+    dict(type='SegResizeFlipPadRescale', scale_factor=1 / 8),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels','gt_semantic_seg']),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -134,6 +154,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train2017.json',
         img_prefix=data_root + 'train2017/',
+        seg_prefix=data_root + 'stuffthingmaps/train2017/',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
@@ -146,7 +167,7 @@ data = dict(
         img_prefix=data_root + 'val2017/',
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
