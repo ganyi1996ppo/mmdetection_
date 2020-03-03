@@ -88,14 +88,14 @@ class ProtoRCNN(TwoStageDetector):
         if self.detach_seg:
             semantic_pred = semantic_pred.detach()
         losses['loss_mask_seg'] = loss_seg
-        seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
-                              torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
-                              torch.arange(72, 83), torch.arange(84, 91)])
-        if self.bg_seg:
-            seg_inds = torch.cat([seg_inds, torch.arange(92,183)])
-        seg_feats = semantic_pred.softmax(dim=1)
-        seg_feats = seg_feats[:, seg_inds, :, :].contiguous()
         if self.augneck:
+            seg_inds = torch.cat([torch.arange(1, 12), torch.arange(13, 26), torch.arange(27, 29), torch.arange(31, 45),
+                                  torch.arange(46, 66), torch.arange(67, 68), torch.arange(70, 71),
+                                  torch.arange(72, 83), torch.arange(84, 91)])
+            if self.bg_seg:
+                seg_inds = torch.cat([seg_inds, torch.arange(92,183)])
+            seg_feats = semantic_pred.softmax(dim=1)
+            seg_feats = seg_feats[:, seg_inds, :, :].contiguous()
             x = self.fuse_neck(x, seg_feats)
 
         # RPN forward and loss
