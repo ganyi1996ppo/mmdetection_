@@ -1,10 +1,10 @@
 # model settings
 model = dict(
     type='ProtoRCNN',
-    pretrained='open-mmlab://resnet101_caffe',
+    pretrained='open-mmlab://resnet50_caffe',
     backbone=dict(
         type='ResNet',
-        depth=101,
+        depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
@@ -15,7 +15,7 @@ model = dict(
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
-semantic_head=dict(
+    semantic_head=dict(
             type='FusedASemanticHead',
             num_ins=5,
             fusion_level=1,
@@ -163,8 +163,8 @@ data = dict(
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root + 'annotations/image_info_test2017.json',
+        img_prefix=data_root + 'test2017/',
         pipeline=test_pipeline))
 # optimizer
 optimizer = dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0001)
@@ -189,7 +189,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r101_fpn_1x'
+work_dir = './work_dirs/faster_rcnn_r50_spn_1x'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
