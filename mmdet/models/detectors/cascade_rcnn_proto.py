@@ -505,7 +505,7 @@ class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
                     bbox_label = cls_score.argmax(dim=1)
                     rois = bbox_head.regress_by_class(rois, bbox_label, bbox_pred,
                                                       img_meta[0])
-            cls_score = sum(ms_scores) / self.num_stages
+            cls_score = sum(ms_scores) / float(len(ms_scores))
             det_bboxes, det_labels = self.bbox_head[-1].get_det_bboxes(
                 rois,
                 cls_score,
@@ -556,6 +556,7 @@ class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
         #                                         rcnn_test_cfg.score_thr,
         #                                         rcnn_test_cfg.nms,
         #                                         rcnn_test_cfg.max_per_img)
+        # bbox_result = bbox2result(det_bboxes, det_labels, self.bbox_head[-1].num_classes)
         return det_bboxes, det_labels
 
 
@@ -564,13 +565,13 @@ class CascadeRCNN_Proto(BaseDetector, RPNTestMixin):
         proposal_list = self.aug_test_rpn(
             x, img_metas, self.test_cfg.rpn)
         det_bboxes, det_labels = self.aug_test_bboxes(x, img_metas, proposal_list, self.test_cfg.rcnn)
-        if rescale:
-            _det_bboxes = det_bboxes
-        else:
-            _det_bboxes = det_bboxes.clone()
-            _det_bboxes[:, :4] *= img_metas[0][0]['scale_factor']
-        bbox_results = bbox2result(_det_bboxes, det_labels,
-                                   self.bbox_head.num_classes)
+        # if rescale:
+        #     _det_bboxes = det_bboxes
+        # else:
+        #     _det_bboxes = det_bboxes.clone()
+        #     _det_bboxes[:, :4] *= img_metas[0][0]['scale_factor']
+        bbox_results = bbox2result(det_bboxes, det_labels,
+                                   self.bbox_head[-1].num_classes)
         return bbox_results
 
 
