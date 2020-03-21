@@ -4,7 +4,9 @@ import torch
 import torch.nn as nn
 
 from mmdet.core import (bbox2result, bbox2roi, build_assigner, build_sampler,
-                        merge_aug_masks)
+                        merge_aug_masks, merge_aug_bboxes, bbox_mapping,
+                        merge_aug_proposals, multiclass_nms
+                        )
 from .. import builder
 from ..registry import DETECTORS
 from .base import BaseDetector
@@ -399,8 +401,140 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
 
         return results
 
-    def aug_test(self, img, img_meta, proposals=None, rescale=False):
-        raise NotImplementedError
+    def aug_test_rpn(self, feats, img_metas, rpn_test_cfg):
+        imgs_per_gpu = len(img_metas[0])
+        aug_proposals = [[] for _ in range(imgs_per_gpu)]
+        for x, img_meta in zip(feats, img_metas):
+
+            proposal_list = self.simple_test_rpn(x, img_meta, rpn_test_cfg)
+            for i, proposals in enumerate(proposal_list):
+                aug_proposals[i].append(proposals)
+        # reorganize the order of 'img_metas' to match the dimensions
+        # of 'aug_proposals'
+        aug_img_metas = []
+        for i in range(imgs_per_gpu):
+            aug_img_meta = []
+            for j in range(len(img_metas)):
+                aug_img_meta.append(img_metas[j][i])
+            aug_img_metas.append(aug_img_meta)
+        # after merging, proposals will be rescaled to the original image size
+        merged_proposals = [
+            merge_aug_proposals(proposals, aug_img_meta, rpn_test_cfg)
+            for proposals, aug_img_meta in zip(aug_proposals, aug_img_metas)
+        ]
+
+        return merged_proposals
+
+    def aug_test_bboxes(self, feats, img_metas, proposal_list, rcnn_test_cfg):
+        aug_bboxes = []
+        aug_scores = []
+        for x, img_meta in zip(feats, img_metas):
+            # only one image in the batch
+            img_shape = img_meta[0]['img_shape']
+            scale_factor = img_meta[0]['scale_factor']
+            flip = img_meta[0]['flip']
+            # TODO more flexible
+            ms_bbox_result = {}
+            ms_scores = []
+            proposals = bbox_mapping(proposal_list[0][:, :4], img_shape,
+                                     scale_factor, flip)
+            rois = bbox2roi([proposals])
+            for i in range(self.num_stages):
+                bbox_roi_extractor = self.bbox_roi_extractor[i]
+                bbox_head = self.bbox_head[i]
+
+                bbox_feats = bbox_roi_extractor(
+                    x[:len(bbox_roi_extractor.featmap_strides)], rois)
+                if self.with_shared_head:
+                    bbox_feats = self.shared_head(bbox_feats)
+
+                cls_score, bbox_pred = bbox_head(bbox_feats)
+                ms_scores.append(cls_score)
+
+                if self.test_cfg.keep_all_stages:
+                    det_bboxes, det_labels = bbox_head.get_det_bboxes(
+                        rois,
+                        cls_score,
+                        bbox_pred,
+                        img_shape,
+                        scale_factor,
+                        rescale=False,
+                        cfg=rcnn_test_cfg)
+                    bbox_result = bbox2result(det_bboxes, det_labels,
+                                              bbox_head.num_classes)
+                    ms_bbox_result['stage{}'.format(i)] = bbox_result
+                if i < self.num_stages - 1:
+                    bbox_label = cls_score.argmax(dim=1)
+                    rois = bbox_head.regress_by_class(rois, bbox_label, bbox_pred,
+                                                      img_meta[0])
+            cls_score = sum(ms_scores) / float(len(ms_scores))
+            det_bboxes, det_labels = self.bbox_head[-1].get_det_bboxes(
+                rois,
+                cls_score,
+                bbox_pred,
+                img_shape,
+                scale_factor,
+                rescale=False,
+                cfg=None)
+            aug_bboxes.append(det_bboxes)
+            aug_scores.append(det_labels)
+        merged_bboxes, merged_scores = merge_aug_bboxes(
+            aug_bboxes, aug_scores, img_metas, rcnn_test_cfg
+        )
+        det_bboxes, det_labels = multiclass_nms(
+            merged_bboxes, merged_scores, rcnn_test_cfg.score_thr,
+            rcnn_test_cfg.nms, rcnn_test_cfg.max_per_img
+        )
+            # bbox_result = bbox2result(det_bboxes, det_labels,
+            #                           self.bbox_head[-1].num_classes)
+            # ms_bbox_result['ensemble'] = bbox_result
+            # if not self.test_cfg.keep_all_stages:
+            #     results = ms_bbox_result['ensemble']
+            # else:
+            #     results = ms_bbox_result
+
+
+
+            # recompute feature maps to save GPU memory
+            # roi_feats = self.bbox_roi_extractor(
+            #     x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
+            # if self.with_shared_head:
+            #     roi_feats = self.shared_head(roi_feats)
+            # cls_score, bbox_pred = self.bbox_head(roi_feats)
+        #     bboxes, scores = self.bbox_head.get_det_bboxes(
+        #         rois,
+        #         cls_score,
+        #         bbox_pred,
+        #         img_shape,
+        #         scale_factor,
+        #         rescale=False,
+        #         cfg=None)
+        #     aug_bboxes.append(bboxes)
+        #     aug_scores.append(scores)
+        # # after merging, bboxes will be rescaled to the original image size
+        # merged_bboxes, merged_scores = merge_aug_bboxes(
+        #     aug_bboxes, aug_scores, img_metas, rcnn_test_cfg)
+        # det_bboxes, det_labels = multiclass_nms(merged_bboxes, merged_scores,
+        #                                         rcnn_test_cfg.score_thr,
+        #                                         rcnn_test_cfg.nms,
+        #                                         rcnn_test_cfg.max_per_img)
+        # bbox_result = bbox2result(det_bboxes, det_labels, self.bbox_head[-1].num_classes)
+        return det_bboxes, det_labels
+
+
+    def aug_test(self, imgs, img_metas, proposals=None, rescale=False):
+
+        proposal_list = self.aug_test_rpn(
+            self.extract_feats(imgs), img_metas, self.test_cfg.rpn)
+        det_bboxes, det_labels = self.aug_test_bboxes(self.extract_feats(imgs), img_metas, proposal_list, self.test_cfg.rcnn)
+        # if rescale:
+        #     _det_bboxes = det_bboxes
+        # else:
+        #     _det_bboxes = det_bboxes.clone()
+        #     _det_bboxes[:, :4] *= img_metas[0][0]['scale_factor']
+        bbox_results = bbox2result(det_bboxes, det_labels,
+                                   self.bbox_head[-1].num_classes)
+        return bbox_results
 
     def show_result(self, data, result, **kwargs):
         if self.with_mask:
