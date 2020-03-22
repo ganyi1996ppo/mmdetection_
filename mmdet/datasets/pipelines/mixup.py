@@ -200,7 +200,7 @@ class MixUp(object):
         # print("bbox2's shape: {}".format(bboxes2.shape))
         # print("label1's shape: {}".format(label1.shape))
         bboxes = np.vstack([bboxes1, bboxes2])
-        labels = np.vstack([label1, label2])
+        labels = np.vstack([label1[:,np.newaxis], label2[:,np.newaxis]]).squeeze()
         # new_res = dict()
         # bboxes_loss = np.vstack([np.full((bboxes1.shape[0],1), self.alpha), np.full((bboxes2.shape[0],1), self.beta)])
         result1['img'] = image
