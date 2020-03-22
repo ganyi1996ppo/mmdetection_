@@ -196,19 +196,22 @@ class MixUp(object):
         image[0:result2['img_shape'][0], 0:result2['img_shape'][1],:] += result2['img'] * self.beta
         bboxes1, bboxes2 = result1['gt_bboxes'],result2['gt_bboxes']
         label1, label2 = result1['gt_labels'], result2['gt_labels']
-        bboxes = np.hstack([bboxes1, bboxes2])
-        labels = np.hstack([label1, label2])
+        # print("bbox1's shape: {}".format(bboxes1.shape))
+        # print("bbox2's shape: {}".format(bboxes2.shape))
+        # print("label1's shape: {}".format(label1.shape))
+        bboxes = np.vstack([bboxes1, bboxes2])
+        labels = np.vstack([label1, label2])
+        # new_res = dict()
         # bboxes_loss = np.vstack([np.full((bboxes1.shape[0],1), self.alpha), np.full((bboxes2.shape[0],1), self.beta)])
-        results['img'] = image
-        results['gt_bboxes'] = bboxes
-        results['gt_labels'] = labels
+        result1['img'] = image
+        result1['gt_bboxes'] = bboxes
+        result1['gt_labels'] = labels
         # results['bboxes_loss'] = bboxes_loss
-        results['bbox_fields'].extend(['gt_bboxes'])
-        results['filename'] = result1['filename']
-        results['ori_shape'] = image.shape
-        results['img_shape'] = image.shape
+        # result1['bbox_fields']
+        result1['ori_shape'] = image.shape
+        result1['img_shape'] = image.shape
 
-        return results
+        return result1
 
     def __repr__(self):
         repr_str = self.__class__.__name__
