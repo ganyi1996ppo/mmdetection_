@@ -219,29 +219,29 @@ class MixUp(object):
 
 
 
-@PIPELINES.register_module
-class LoadProposals(object):
-
-    def __init__(self, num_max_proposals=None):
-        self.num_max_proposals = num_max_proposals
-
-    def __call__(self, results):
-        proposals = results['proposals']
-        if proposals.shape[1] not in (4, 5):
-            raise AssertionError(
-                'proposals should have shapes (n, 4) or (n, 5), '
-                'but found {}'.format(proposals.shape))
-        proposals = proposals[:, :4]
-
-        if self.num_max_proposals is not None:
-            proposals = proposals[:self.num_max_proposals]
-
-        if len(proposals) == 0:
-            proposals = np.array([0, 0, 0, 0], dtype=np.float32)
-        results['proposals'] = proposals
-        results['bbox_fields'].append('proposals')
-        return results
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(num_max_proposals={})'.format(
-            self.num_max_proposals)
+# @PIPELINES.register_module
+# class LoadProposals(object):
+#
+#     def __init__(self, num_max_proposals=None):
+#         self.num_max_proposals = num_max_proposals
+#
+#     def __call__(self, results):
+#         proposals = results['proposals']
+#         if proposals.shape[1] not in (4, 5):
+#             raise AssertionError(
+#                 'proposals should have shapes (n, 4) or (n, 5), '
+#                 'but found {}'.format(proposals.shape))
+#         proposals = proposals[:, :4]
+#
+#         if self.num_max_proposals is not None:
+#             proposals = proposals[:self.num_max_proposals]
+#
+#         if len(proposals) == 0:
+#             proposals = np.array([0, 0, 0, 0], dtype=np.float32)
+#         results['proposals'] = proposals
+#         results['bbox_fields'].append('proposals')
+#         return results
+#
+#     def __repr__(self):
+#         return self.__class__.__name__ + '(num_max_proposals={})'.format(
+#             self.num_max_proposals)
