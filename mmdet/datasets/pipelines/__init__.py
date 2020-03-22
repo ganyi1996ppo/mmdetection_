@@ -2,7 +2,7 @@ from .compose import Compose
 from .formating import (Collect, ImageToTensor, ToDataContainer, ToTensor,
                         Transpose, to_tensor)
 from .loading import LoadAnnotations, LoadImageFromFile, LoadProposals
-from .loading_change import LoadAnnotations_mixup, LoadImageFromFile_mixup, MixUp
+from .mixup import LoadAnnotations_mixup, LoadImageFromFile_mixup, MixUp
 from .test_aug import MultiScaleFlipAug
 from .transforms import (Expand, MinIoURandomCrop, Normalize, Pad,
                          PhotoMetricDistortion, RandomCrop, RandomFlip, Resize,
