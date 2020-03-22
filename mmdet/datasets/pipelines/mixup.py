@@ -188,12 +188,12 @@ class MixUp(object):
 
     def __call__(self, results):
         result1, result2 = results
-        H = max(result1['image_shape'][0], result2['image_shape'][0])
-        W = max(result1['image_shape'][1], result2['image_shape'][1])
+        H = max(result1['img_shape'][0], result2['img_shape'][0])
+        W = max(result1['img_shape'][1], result2['img_shape'][1])
         image_shape = (H,W,3)
         image = np.zeros(image_shape)
-        image[0:result1['image_shape'][0], 0:result1['image_shape'][1],:] += result1['img'] * self.alpha
-        image[0:result2['image_shape'][0], 0:result2['image_shape'][1],:] += result2['img'] * self.beta
+        image[0:result1['img_shape'][0], 0:result1['img_shape'][1],:] += result1['img'] * self.alpha
+        image[0:result2['img_shape'][0], 0:result2['img_shape'][1],:] += result2['img'] * self.beta
         bboxes1, bboxes2 = result1['gt_bboxes'],result2['gt_bboxes']
         label1, label2 = result1['gt_labels'], result2['gt_labels']
         bboxes = np.vstack([bboxes1, bboxes2])
