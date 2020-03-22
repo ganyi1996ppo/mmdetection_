@@ -9,6 +9,32 @@ from .registry import DATASETS
 class UnderseaDataset(CustomDataset):
 
     CLASSES = ('holothurian', 'echinus', 'scallop', 'starfish')
+    def __init__(self,
+                 mixup=False,
+                 *args,
+                 **kwargs):
+        super(UnderseaDataset, self).__init__(*args, **kwargs)
+        self.mixup = mixup
+
+
+
+    def prepare_train_img(self, idx):
+        img_info = self.img_infos[idx]
+        ann_info = self.get_ann_info(idx)
+        if self.mixup:
+            idx2 = self._rand_another(idx)
+            img_info2 = self.img_infos[idx2]
+            ann_info2 = self.get_ann_info(idx2)
+            results = [dict(img_info=img_info, ann_info=ann_info), dict(img_info=img_info2, ann_info=ann_info2)]
+            for result in results:
+                self.pre_pipeline(result)
+        else:
+            results = dict(img_info=img_info, ann_info=ann_info)
+            if self.proposals is not None:
+                results['proposals'] = self.proposals[idx]
+            self.pre_pipeline(results)
+        
+        return self.pipeline(results)
 
     def load_annotations(self, ann_file):
         self.coco = COCO(ann_file)
@@ -27,6 +53,7 @@ class UnderseaDataset(CustomDataset):
 
     def get_ann_info(self, idx):
         img_id = self.img_infos[idx]['id']
+
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         ann_info = self.coco.loadAnns(ann_ids)
         return self._parse_ann_info(self.img_infos[idx], ann_info)
