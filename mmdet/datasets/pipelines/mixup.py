@@ -196,13 +196,13 @@ class MixUp(object):
         image[0:result2['img_shape'][0], 0:result2['img_shape'][1],:] += result2['img'] * self.beta
         bboxes1, bboxes2 = result1['gt_bboxes'],result2['gt_bboxes']
         label1, label2 = result1['gt_labels'], result2['gt_labels']
-        bboxes = np.vstack([bboxes1, bboxes2])
-        labels = np.vstack([label1, label2])
-        bboxes_loss = np.vstack([np.full((bboxes1.shape[0],1), self.alpha), np.full((bboxes2.shape[0],1), self.beta)])
+        bboxes = np.hstack([bboxes1, bboxes2])
+        labels = np.hstack([label1, label2])
+        # bboxes_loss = np.vstack([np.full((bboxes1.shape[0],1), self.alpha), np.full((bboxes2.shape[0],1), self.beta)])
         results['img'] = image
         results['gt_bboxes'] = bboxes
         results['gt_labels'] = labels
-        results['bboxes_loss'] = bboxes_loss
+        # results['bboxes_loss'] = bboxes_loss
         results['bbox_fields'].extend(['gt_bboxes'])
         results['filename'] = result1['filename']
         results['ori_shape'] = image.shape
