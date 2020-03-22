@@ -10,21 +10,36 @@ from ..registry import PIPELINES
 
 
 @PIPELINES.register_module
-class LoadImageFromFile(object):
+class LoadImageFromFile_mixup(object):
 
     def __init__(self, to_float32=False):
         self.to_float32 = to_float32
 
     def __call__(self, results):
-        filename = osp.join(results['img_prefix'],
-                            results['img_info']['filename'])
-        img = mmcv.imread(filename)
-        if self.to_float32:
-            img = img.astype(np.float32)
-        results['filename'] = filename
-        results['img'] = img
-        results['img_shape'] = img.shape
-        results['ori_shape'] = img.shape
+        if isinstance(results, list):
+            res = []
+            for result in results:
+                filename = osp.join(result['img_prefix'],
+                                    result['img_info']['filename'])
+                img = mmcv.imread(filename)
+                if self.to_float32:
+                    img = img.astype(np.float32)
+                result['filename'] = filename
+                result['img'] = img
+                result['img_shape'] = img.shape
+                result['ori_shape'] = img.shape
+                res.append(result)
+            return res
+        else:
+            filename = osp.join(results['img_prefix'],
+                                results['img_info']['filename'])
+            img = mmcv.imread(filename)
+            if self.to_float32:
+                img = img.astype(np.float32)
+            results['filename'] = filename
+            results['img'] = img
+            results['img_shape'] = img.shape
+            results['ori_shape'] = img.shape
         return results
 
     def __repr__(self):
@@ -33,7 +48,7 @@ class LoadImageFromFile(object):
 
 
 @PIPELINES.register_module
-class LoadAnnotations(object):
+class LoadAnnotations_mixup(object):
 
     def __init__(self,
                  with_bbox=True,
@@ -124,19 +139,37 @@ class LoadAnnotations(object):
         return results
 
     def __call__(self, results):
-        if self.with_bbox:
-            results = self._load_bboxes(results)
-            if results is None:
-                return None
-        if self.with_label:
-            results = self._load_labels(results)
-        if self.with_mask:
-            results = self._load_masks(results)
-        if self.with_mask_box:
-            results = self._load_mask_boxes(results)
-        if self.with_seg:
-            results = self._load_semantic_seg(results)
-        return results
+        if isinstance(results, list):
+            res = []
+            for result in results:
+                if self.with_bbox:
+                    results = self._load_bboxes(result)
+                    if results is None:
+                        return None
+                if self.with_label:
+                    results = self._load_labels(result)
+                if self.with_mask:
+                    results = self._load_masks(result)
+                if self.with_mask_box:
+                    results = self._load_mask_boxes(result)
+                if self.with_seg:
+                    results = self._load_semantic_seg(result)
+                res.append(results)
+            return res
+        else:
+            if self.with_bbox:
+                results = self._load_bboxes(results)
+                if results is None:
+                    return None
+            if self.with_label:
+                results = self._load_labels(results)
+            if self.with_mask:
+                results = self._load_masks(results)
+            if self.with_mask_box:
+                results = self._load_mask_boxes(results)
+            if self.with_seg:
+                results = self._load_semantic_seg(results)
+            return results
 
     def __repr__(self):
         repr_str = self.__class__.__name__
@@ -144,6 +177,46 @@ class LoadAnnotations(object):
                      ' with_seg={})').format(self.with_bbox, self.with_label,
                                              self.with_mask, self.with_seg)
         return repr_str
+
+
+@PIPELINES.register_module
+class MixUp(object):
+
+    def __init__(self, alpha, beta):
+        self.alpha= alpha
+        self.beta = beta
+
+    def __call__(self, results):
+        result1, result2 = results
+        H = max(result1['image_shape'][0], result2['image_shape'][0])
+        W = max(result1['image_shape'][1], result2['image_shape'][1])
+        image_shape = (H,W,3)
+        image = np.zeros(image_shape)
+        image[0:result1['image_shape'][0], 0:result1['image_shape'][1],:] += result1['img'] * self.alpha
+        image[0:result2['image_shape'][0], 0:result2['image_shape'][1],:] += result2['img'] * self.beta
+        bboxes1, bboxes2 = result1['gt_bboxes'],result2['gt_bboxes']
+        label1, label2 = result1['gt_labels'], result2['gt_labels']
+        bboxes = np.vstack([bboxes1, bboxes2])
+        labels = np.vstack([label1, label2])
+        bboxes_loss = np.vstack([np.full((bboxes1.shape[0],1), self.alpha), np.full((bboxes2.shape[0],1), self.beta)])
+        results['img'] = image
+        results['gt_bboxes'] = bboxes
+        results['gt_labels'] = labels
+        results['bboxes_loss'] = bboxes_loss
+        results['bbox_fields'].extend(['gt_bboxes'])
+        results['filename'] = result1['filename']
+        results['ori_shape'] = image.shape
+        results['img_shape'] = image.shape
+
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += ('(alpha={}, beta={})'.format(self.alpha, self.beta))
+        return repr_str
+
+
+
 
 
 @PIPELINES.register_module
