@@ -265,7 +265,7 @@ class TwoStageDetector_gas(BaseDetector, RPNTestMixin, BBoxTestMixin,
                       gt_masks=None,
                       proposals=None):
         x, losses = self.supervise_first(img, img_meta, gt_bboxes, gt_labels, gt_bboxes_ignore, gt_masks, proposals)
-        losses = dict()
+        # losses = dict()
 
         # RPN forward and loss
         if self.with_rpn:
