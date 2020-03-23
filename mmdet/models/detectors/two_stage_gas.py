@@ -151,7 +151,7 @@ class TwoStageDetector_gas(BaseDetector, RPNTestMixin, BBoxTestMixin,
                                           self.train_cfg.rpn)
             rpn_losses = self.rpn_head.loss(
                 *rpn_loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-            rpn_losses = rpn_losses * self.alpha
+            rpn_losses = rpn_losses
             losses.update(rpn_losses)
 
             proposal_cfg = self.train_cfg.get('rpn_proposal',
@@ -200,7 +200,7 @@ class TwoStageDetector_gas(BaseDetector, RPNTestMixin, BBoxTestMixin,
                                                      self.train_cfg.rcnn)
             loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
                                             *bbox_targets)
-            loss_bbox = loss_bbox * self.alpha
+            loss_bbox = loss_bbox
             losses.update(loss_bbox)
 
         # mask head forward and loss
@@ -237,8 +237,13 @@ class TwoStageDetector_gas(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 [res.pos_gt_labels for res in sampling_results])
             loss_mask = self.mask_head.loss(mask_pred, mask_targets,
                                             pos_labels)
-            loss_mask = loss_mask * self.alpha
+            loss_mask = loss_mask
             losses.update(loss_mask)
+            for key,val in losses.items():
+                nkey = key+'sup'
+                losses[nkey] = val * self.alpha
+                del losses[key]
+
             if self.fuse:
                 x = self.fuse_neck(old_x, x)
             return x, losses
