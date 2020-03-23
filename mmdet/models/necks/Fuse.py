@@ -10,7 +10,7 @@ from ..utils import ConvModule
 @NECKS.register_module
 class FuseNeck(nn.Module):
 
-    def __init___(self,
+    def __init__(self,
                   in_channels=256,
                   out_channels=256,
                   num_levels=5,

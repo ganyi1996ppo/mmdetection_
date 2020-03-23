@@ -19,7 +19,7 @@ class GAS(nn.Module):
                  norm_cfg=None):
         super(GAS, self).__init__()
         self.gather_conv = nn.ModuleList()
-        if self.conv_before:
+        if conv_before:
             self.bf_conv = nn.ModuleList()
         self.gather_level = gather_level
         self.in_channels = in_channels

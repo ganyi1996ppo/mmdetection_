@@ -239,14 +239,21 @@ class TwoStageDetector_gas(BaseDetector, RPNTestMixin, BBoxTestMixin,
                                             pos_labels)
             loss_mask = loss_mask
             losses.update(loss_mask)
-            for key,val in losses.items():
-                nkey = key+'sup'
-                losses[nkey] = val * self.alpha
-                del losses[key]
+        new_losses = dict()
+        for key,val in losses.items():
+            if isinstance(val, list):
+                for i in range(len(val)):
+                    val[i] = val[i] * self.alpha
+                new_losses['sup_{}'.format(key)] = val
+            else:
+                new_losses['sup_{}'.format(key)] = val * self.alpha if 'loss' in key else val
+                # nkey = key+'sup'
+                # losses[nkey] = val * self.alpha
+                # del losses[key]
 
-            if self.fuse:
+        if self.fuse:
                 x = self.fuse_neck(old_x, x)
-            return x, losses
+        return x, new_losses
 
 
     def forward_train(self,

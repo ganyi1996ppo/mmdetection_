@@ -19,7 +19,7 @@ from .mask_scoring_rcnn_SH import SHRCNN
 from .mask_scoring_rcnn_Protoo import ProtoRCNN
 from .cascade_rcnn_proto import CascadeRCNN_Proto
 from .single_stage_Proto import Retina_Proto
-from .cascade_rcnn_undersea import CascadeRCNN_US
+# from .cascade_rcnn_undersea import CascadeRCNN_US
 from .two_stage_gas import TwoStageDetector_gas
 
 __all__ = [
@@ -27,5 +27,5 @@ __all__ = [
     'FastRCNN', 'FasterRCNN', 'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade',
     'DoubleHeadRCNN', 'RetinaNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN',
     'RepPointsDetector',  'MaskHintRCNN', 'SHRCNN', 'ProtoRCNN', 'CascadeRCNN_Proto',
-    'Retina_Proto','CascadeRCNN_US','TwoStageDetector_gas'
+    'Retina_Proto','TwoStageDetector_gas'
 ]
