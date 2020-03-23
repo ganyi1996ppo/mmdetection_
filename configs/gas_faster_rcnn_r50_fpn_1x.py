@@ -12,18 +12,18 @@ model = dict(
     gas_neck=dict(
         type='GAS',
         gather_levels=2,
-        in_channls=256,
-        out_channels=256,
-        num_levels=5,
+        # in_channels=256,
+        # out_channels=256,
+        # num_levels=5,
     ),
     fuse_neck=dict(
         type='FuseNeck',
         in_channels=256,
         out_channels=256,
-        num_levels=5,
-        final_combine='add',
-        norm_cfg = None,
-        conv_cfg=None
+        # num_levels=5,
+        # final_combine='add',
+        # norm_cfg = None,
+        # conv_cfg=None
     ),
     neck=dict(
         type='FPN',
