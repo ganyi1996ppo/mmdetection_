@@ -75,8 +75,8 @@ class MaxIoUUDAssigner(BaseAssigner):
         if bboxes.shape[0] == 0 or gt_bboxes.shape[0] == 0:
             raise ValueError('No gt or bboxes')
         bboxes = bboxes[:, :4]
-        gt_bboxes_center = (gt_bboxes[0:2] + gt_bboxes[2:])/2.0
-        H_W = (gt_bboxes[2:] - gt_bboxes[0:2]) * self.center_thr
+        gt_bboxes_center = (gt_bboxes[:,0:2] + gt_bboxes[:,2:])/2.0
+        H_W = (gt_bboxes[:,2:] - gt_bboxes[:,0:2]) * self.center_thr
         x1_y1 = gt_bboxes_center - H_W
         x2_y2 = gt_bboxes_center + H_W
         center_bboxes = torch.cat([x1_y1, x2_y2],dim=1)
