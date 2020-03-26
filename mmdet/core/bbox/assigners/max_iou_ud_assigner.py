@@ -35,12 +35,14 @@ class MaxIoUUDAssigner(BaseAssigner):
                  neg_iou_thr,
                  min_pos_iou=.0,
                  center_thr=1/4,
+                 center_iou_thr=0.01,
                  gt_max_assign_all=True,
                  ignore_iof_thr=-1,
                  ignore_wrt_candidates=True):
         self.pos_iou_thr = pos_iou_thr
         self.neg_iou_thr = neg_iou_thr
         self.min_pos_iou = min_pos_iou
+        self.center_iou_thr = center_iou_thr
         self.center_thr = center_thr
         self.gt_max_assign_all = gt_max_assign_all
         self.ignore_iof_thr = ignore_iof_thr
@@ -137,7 +139,7 @@ class MaxIoUUDAssigner(BaseAssigner):
                              & (max_overlaps < self.neg_iou_thr[1])] = 0
 
         assigned_gt_inds[(assigned_gt_inds==0)
-                         & (max_overlaps_center>0)] = -1
+                         & (max_overlaps_center>=self.center_iou_thr)] = -1
         # 3. assign positive: above positive IoU threshold
         pos_inds = max_overlaps >= self.pos_iou_thr
         assigned_gt_inds[pos_inds] = argmax_overlaps[pos_inds] + 1
