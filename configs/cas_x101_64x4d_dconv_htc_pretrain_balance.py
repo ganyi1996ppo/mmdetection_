@@ -58,7 +58,12 @@ model = dict(
             reg_class_agnostic=True,
             loss_cls=dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-            loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)),
+            loss_bbox=dict(
+                type='BalancedL1Loss',
+                alpha=0.5,
+                gamma=1.5,
+                beta=1.0,
+                loss_weight=1.0)),
         dict(
             type='SharedFCBBoxHead',
             num_fcs=2,
@@ -71,7 +76,12 @@ model = dict(
             reg_class_agnostic=True,
             loss_cls=dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-            loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)),
+            loss_bbox=dict(
+                type='BalancedL1Loss',
+                alpha=0.5,
+                gamma=1.5,
+                beta=1.0,
+                loss_weight=1.0)),
         dict(
             type='SharedFCBBoxHead',
             num_fcs=2,
@@ -84,7 +94,12 @@ model = dict(
             reg_class_agnostic=True,
             loss_cls=dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-            loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0))
+            loss_bbox=dict(
+                type='BalancedL1Loss',
+                alpha=0.5,
+                gamma=1.5,
+                beta=1.0,
+                loss_weight=1.0))
     ])
 # model training and testing settings
 train_cfg = dict(
@@ -120,9 +135,15 @@ train_cfg = dict(
                 min_pos_iou=0.5,
                 ignore_iof_thr=-1),
             sampler=dict(
-                type='RandomSampler',
+                type='CombineSampler',
                 num=512,
                 pos_fraction=0.25,
+                pos_sampler=dict(type='InstanceBalancedPosSampler'),
+                neg_sampler=dict(
+                type='IoUBalancedNegSampler',
+                floor_thr=-1,
+                floor_fraction=0,
+                num_bins=3),
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
             pos_weight=-1,
@@ -135,9 +156,15 @@ train_cfg = dict(
                 min_pos_iou=0.6,
                 ignore_iof_thr=-1),
             sampler=dict(
-                type='RandomSampler',
+                type='CombineSampler',
                 num=512,
                 pos_fraction=0.25,
+                pos_sampler=dict(type='InstanceBalancedPosSampler'),
+                neg_sampler=dict(
+                    type='IoUBalancedNegSampler',
+                    floor_thr=-1,
+                    floor_fraction=0,
+                    num_bins=3),
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
             pos_weight=-1,
@@ -150,9 +177,15 @@ train_cfg = dict(
                 min_pos_iou=0.7,
                 ignore_iof_thr=-1),
             sampler=dict(
-                type='RandomSampler',
+                type='CombineSampler',
                 num=512,
                 pos_fraction=0.25,
+                pos_sampler=dict(type='InstanceBalancedPosSampler'),
+                neg_sampler=dict(
+                    type='IoUBalancedNegSampler',
+                    floor_thr=-1,
+                    floor_fraction=0,
+                    num_bins=3),
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
             pos_weight=-1,
@@ -212,8 +245,8 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=[(1600, 600), (1600, 800), (1600, 1000)],
-        flip=False,
+        img_scale=[(1600, 600), (1600, 800), (1600, 1000),(1600,1200)],
+        flip=True,
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
@@ -250,7 +283,7 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[16, 22])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -261,10 +294,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 24
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/htc_pretrain_cas_x101_64_4d_undersea_after_47.56'
+work_dir = './work_dirs/balanced_rpn_htc_pretrain_cas_x101_64_4d_undersea_after_48.4'
 load_from = 'data/htc_dconv_c3-c5_mstrain_400_1400_x101_64x4d_fpn_20e_20190408-0e50669c.pth'
 resume_from = None
 workflow = [('train', 1)]

@@ -1,4 +1,5 @@
 import torch
+import math
 
 from ..geometry import bbox_overlaps
 from .assign_result import AssignResult
@@ -34,14 +35,16 @@ class MaxIoUUDAssigner(BaseAssigner):
                  pos_iou_thr,
                  neg_iou_thr,
                  min_pos_iou=.0,
+                 area_ratio=1.5,
                  center_thr=1/4,
-                 center_iou_thr=0.01,
+                 center_iou_thr=0.7,
                  gt_max_assign_all=True,
                  ignore_iof_thr=-1,
                  ignore_wrt_candidates=True):
         self.pos_iou_thr = pos_iou_thr
         self.neg_iou_thr = neg_iou_thr
         self.min_pos_iou = min_pos_iou
+        self.area_ratio = area_ratio
         self.center_iou_thr = center_iou_thr
         self.center_thr = center_thr
         self.gt_max_assign_all = gt_max_assign_all
@@ -79,8 +82,8 @@ class MaxIoUUDAssigner(BaseAssigner):
         bboxes = bboxes[:, :4]
         gt_bboxes_center = (gt_bboxes[:,0:2] + gt_bboxes[:,2:])/2.0
         H_W = (gt_bboxes[:,2:] - gt_bboxes[:,0:2]) * self.center_thr
-        x1_y1 = gt_bboxes_center - H_W
-        x2_y2 = gt_bboxes_center + H_W
+        x1_y1 = gt_bboxes_center - H_W * math.sqrt(self.area_ratio)/2.0
+        x2_y2 = gt_bboxes_center + H_W * math.sqrt(self.area_ratio)/2.0
         center_bboxes = torch.cat([x1_y1, x2_y2],dim=1)
         overlaps = bbox_overlaps(gt_bboxes, bboxes)
         overlaps_center = bbox_overlaps(center_bboxes, bboxes)
@@ -137,7 +140,8 @@ class MaxIoUUDAssigner(BaseAssigner):
             assert len(self.neg_iou_thr) == 2
             assigned_gt_inds[(max_overlaps >= self.neg_iou_thr[0])
                              & (max_overlaps < self.neg_iou_thr[1])] = 0
-
+        print((assigned_gt_inds==0).sum())
+        print(((assigned_gt_inds==0) & (max_overlaps_center>=self.center_iou_thr)).sum())
         assigned_gt_inds[(assigned_gt_inds==0)
                          & (max_overlaps_center>=self.center_iou_thr)] = -1
         # 3. assign positive: above positive IoU threshold
