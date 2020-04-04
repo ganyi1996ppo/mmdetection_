@@ -3,7 +3,7 @@ import torch
 
 class AssignResult(object):
 
-    def __init__(self, num_gts, gt_inds, max_overlaps,labels=None):
+    def __init__(self, num_gts, gt_inds, max_overlaps, labels=None):
         self.num_gts = num_gts
         self.gt_inds = gt_inds
         if len(max_overlaps) == 2:

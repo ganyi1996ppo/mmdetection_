@@ -1,6 +1,6 @@
-from .assigners import AssignResult, BaseAssigner, MaxIoUAssigner
-from .bbox_target import bbox_target
-from .geometry import bbox_overlaps
+from .assigners import AssignResult, BaseAssigner, MaxIoUAssigner, MaxIoUUDAssigner
+from .bbox_target import bbox_target, soft_bbox_target
+from .geometry import bbox_overlaps, soft_overlaps
 from .samplers import (BaseSampler, CombinedSampler,
                        InstanceBalancedPosSampler, IoUBalancedNegSampler,
                        PseudoSampler, RandomSampler, SamplingResult)
@@ -13,10 +13,10 @@ from .assign_sampling import (  # isort:skip, avoid recursive imports
 
 __all__ = [
     'bbox_overlaps', 'BaseAssigner', 'MaxIoUAssigner', 'AssignResult',
-    'BaseSampler', 'PseudoSampler', 'RandomSampler',
+    'BaseSampler', 'PseudoSampler', 'RandomSampler', 'MaxIoUUDAssigner',
     'InstanceBalancedPosSampler', 'IoUBalancedNegSampler', 'CombinedSampler',
     'SamplingResult', 'build_assigner', 'build_sampler', 'assign_and_sample',
-    'bbox2delta', 'delta2bbox', 'bbox_flip', 'bbox_mapping',
+    'bbox2delta', 'delta2bbox', 'bbox_flip', 'bbox_mapping', 'soft_overlaps',
     'bbox_mapping_back', 'bbox2roi', 'roi2bbox', 'bbox2result',
-    'distance2bbox', 'bbox_target', 'assign_and_sample_mask'
+    'distance2bbox', 'bbox_target', 'assign_and_sample_mask','soft_bbox_target'
 ]

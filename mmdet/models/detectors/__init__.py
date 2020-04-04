@@ -21,11 +21,12 @@ from .cascade_rcnn_proto import CascadeRCNN_Proto
 from .single_stage_Proto import Retina_Proto
 # from .cascade_rcnn_undersea import CascadeRCNN_US
 from .two_stage_gas import TwoStageDetector_gas
+from .two_stage_ud import TwoStageUDDetector
 
 __all__ = [
     'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
     'FastRCNN', 'FasterRCNN', 'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade',
     'DoubleHeadRCNN', 'RetinaNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN',
     'RepPointsDetector',  'MaskHintRCNN', 'SHRCNN', 'ProtoRCNN', 'CascadeRCNN_Proto',
-    'Retina_Proto','TwoStageDetector_gas'
+    'Retina_Proto','TwoStageDetector_gas', 'TwoStageUDDetector'
 ]

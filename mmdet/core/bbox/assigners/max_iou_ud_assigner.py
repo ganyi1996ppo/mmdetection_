@@ -1,7 +1,7 @@
 import torch
 import math
 
-from ..geometry import bbox_overlaps
+from ..geometry import bbox_overlaps, soft_overlaps
 from .assign_result import AssignResult
 from .base_assigner import BaseAssigner
 
@@ -35,18 +35,16 @@ class MaxIoUUDAssigner(BaseAssigner):
                  pos_iou_thr,
                  neg_iou_thr,
                  min_pos_iou=.0,
-                 area_ratio=1.5,
-                 center_thr=1/4,
-                 center_iou_thr=0.7,
+                 center_area_ratio=0.75,
+                 center_iou_thr=0.02,
                  gt_max_assign_all=True,
                  ignore_iof_thr=-1,
                  ignore_wrt_candidates=True):
         self.pos_iou_thr = pos_iou_thr
         self.neg_iou_thr = neg_iou_thr
         self.min_pos_iou = min_pos_iou
-        self.area_ratio = area_ratio
+        self.area_ratio = center_area_ratio
         self.center_iou_thr = center_iou_thr
-        self.center_thr = center_thr
         self.gt_max_assign_all = gt_max_assign_all
         self.ignore_iof_thr = ignore_iof_thr
         self.ignore_wrt_candidates = ignore_wrt_candidates
@@ -81,12 +79,12 @@ class MaxIoUUDAssigner(BaseAssigner):
             raise ValueError('No gt or bboxes')
         bboxes = bboxes[:, :4]
         gt_bboxes_center = (gt_bboxes[:,0:2] + gt_bboxes[:,2:])/2.0
-        H_W = (gt_bboxes[:,2:] - gt_bboxes[:,0:2]) * self.center_thr
+        H_W = gt_bboxes[:,2:] - gt_bboxes[:,0:2]
         x1_y1 = gt_bboxes_center - H_W * math.sqrt(self.area_ratio)/2.0
         x2_y2 = gt_bboxes_center + H_W * math.sqrt(self.area_ratio)/2.0
-        center_bboxes = torch.cat([x1_y1, x2_y2],dim=1)
+        gt_center_bboxes = torch.cat([x1_y1, x2_y2],dim=1)
         overlaps = bbox_overlaps(gt_bboxes, bboxes)
-        overlaps_center = bbox_overlaps(center_bboxes, bboxes)
+        overlaps_center = soft_overlaps(gt_center_bboxes, bboxes)
 
         if (self.ignore_iof_thr > 0) and (gt_bboxes_ignore is not None) and (
                 gt_bboxes_ignore.numel() > 0):
@@ -142,8 +140,9 @@ class MaxIoUUDAssigner(BaseAssigner):
                              & (max_overlaps < self.neg_iou_thr[1])] = 0
         print((assigned_gt_inds==0).sum())
         print(((assigned_gt_inds==0) & (max_overlaps_center>=self.center_iou_thr)).sum())
-        assigned_gt_inds[(assigned_gt_inds==0)
-                         & (max_overlaps_center>=self.center_iou_thr)] = -1
+        ambiguous_inds = (assigned_gt_inds==0) & (max_overlaps_center>=self.center_iou_thr)
+        assigned_gt_inds[ambiguous_inds] = -2
+        # ambiguous_inds_gt = argmax_overlaps[ambiguous_inds]
         # 3. assign positive: above positive IoU threshold
         pos_inds = max_overlaps >= self.pos_iou_thr
         assigned_gt_inds[pos_inds] = argmax_overlaps[pos_inds] + 1
@@ -171,5 +170,5 @@ class MaxIoUUDAssigner(BaseAssigner):
         # return AssignResult(
         #     num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)
         return AssignResult(
-            num_gts, assigned_gt_inds, argmax_overlaps, labels=assigned_labels
+            num_gts, assigned_gt_inds, argmax_overlaps, labels=assigned_labels,
         )

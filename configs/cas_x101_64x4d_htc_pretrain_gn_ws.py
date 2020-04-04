@@ -1,25 +1,34 @@
 # model settings
+fp16 = dict(loss_scale=512.)
+conv_cfg = dict(type='ConvWS')
+norm_cfg = dict(type='GN', num_groups=32, requires_grad=True)
 model = dict(
     type='CascadeRCNN',
-    num_stages=3,
-    pretrained=None,
+    pretrained='open-mmlab://jhu/resnext101_32x4d_gn_ws',
     backbone=dict(
         type='ResNeXt',
         depth=101,
-        groups=64,
+        groups=32,
         base_width=4,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
         style='pytorch',
-        dcn=dict(type='DCN', deformable_groups=1, fallback_on_stride=False)
-    ),
-    neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048],
-        out_channels=256,
-        num_outs=5),
+        conv_cfg=conv_cfg,
+        norm_cfg=norm_cfg),
+    neck=[
+        dict(
+            type='FPN',
+            in_channels=[256, 512, 1024, 2048],
+            out_channels=256,
+            num_outs=5),
+        dict(
+            type='BFP',
+            in_channels=256,
+            num_levels=5,
+            refine_level=2,
+            refine_type='conv')
+    ],
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
@@ -44,7 +53,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
-            num_classes=81,
+            num_classes=5,
             target_means=[0., 0., 0., 0.],
             target_stds=[0.1, 0.1, 0.2, 0.2],
             reg_class_agnostic=True,
@@ -57,7 +66,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
-            num_classes=81,
+            num_classes=5,
             target_means=[0., 0., 0., 0.],
             target_stds=[0.05, 0.05, 0.1, 0.1],
             reg_class_agnostic=True,
@@ -70,7 +79,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
-            num_classes=81,
+            num_classes=5,
             target_means=[0., 0., 0., 0.],
             target_stds=[0.033, 0.033, 0.067, 0.067],
             reg_class_agnostic=True,
@@ -160,7 +169,7 @@ test_cfg = dict(
         nms_thr=0.7,
         min_bbox_size=0),
     rcnn=dict(
-        score_thr=0.05, nms=dict(type='soft_nms', iou_thr=0.5, min_score=0.05), max_per_img=100),
+        score_thr=0.0001, nms=dict(type='soft_nms', iou_thr=0.5, min_score=0.0001), max_per_img=200),
     keep_all_stages=False)
 # dataset settings
 dataset_type = 'UnderseaDataset'
@@ -193,7 +202,7 @@ train_pipeline = [
     #     color_prob=0.5,
     #     hflag=False,
     #     aug_ratio=0.5),
-    dict(type='Resize', img_scale=[(1333,600), (1333,1000)], keep_ratio=True),
+    dict(type='Resize', img_scale=[(4096,600), (4096,1000)], keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
@@ -204,8 +213,8 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=[(4096, 600), (4096, 800), (4096, 1000)],
-        flip=False,
+        img_scale=[(4096,600), (4096, 800), (4096, 1000)],
+        flip=True,
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
@@ -253,10 +262,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 24
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/htc_pretrain_cas_x101_64_4d_undersea'
+work_dir = './work_dirs/htc_pretrain_cas_x101_64_4d_undersea_after_47.56'
 load_from = 'data/htc_dconv_c3-c5_mstrain_400_1400_x101_64x4d_fpn_20e_20190408-0e50669c.pth'
 resume_from = None
 workflow = [('train', 1)]

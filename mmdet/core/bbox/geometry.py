@@ -2,6 +2,47 @@ import torch
 import numpy as np
 
 
+def soft_overlaps(bboxes1, bboxes2, is_aligned=False):
+    rows = bboxes1.size(0)
+    cols = bboxes2.size(0)
+    if is_aligned:
+        assert rows == cols
+
+    if rows * cols == 0:
+        return bboxes1.new(rows, 1) if is_aligned else bboxes1.new(rows, cols)
+
+    if is_aligned:
+        lt = torch.max(bboxes1[:, :2], bboxes2[:, :2])  # [rows, 2]
+        rb = torch.min(bboxes1[:, 2:], bboxes2[:, 2:])  # [rows, 2]
+
+        wh = (rb - lt + 1).clamp(min=0)  # [rows, 2]
+        overlap = wh[:, 0] * wh[:, 1]
+        area1 = (bboxes1[:, 2] - bboxes1[:, 0] + 1) * (
+                bboxes1[:, 3] - bboxes1[:, 1] + 1)
+
+        area_ratio1 = overlap/area1
+        area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
+                bboxes2[:, 3] - bboxes2[:, 1] + 1)
+        area_ratio2 = overlap/area2
+
+    else:
+        lt = torch.max(bboxes1[:, None, :2], bboxes2[:, :2])  # [rows, cols, 2]
+        rb = torch.min(bboxes1[:, None, 2:], bboxes2[:, 2:])  # [rows, cols, 2]
+
+        wh = (rb - lt + 1).clamp(min=0)  # [rows, cols, 2]
+        overlap = wh[:, :, 0] * wh[:, :, 1]
+        area1 = (bboxes1[:, 2] - bboxes1[:, 0] + 1) * (
+                bboxes1[:, 3] - bboxes1[:, 1] + 1)
+
+        area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
+                bboxes2[:, 3] - bboxes2[:, 1] + 1)
+        area_ratio1 = overlap/area1
+        area_ratio2 = overlap/area2
+
+
+    return area_ratio1 * area_ratio2
+
+
 def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
     """Calculate overlap between two set of bboxes.
 
